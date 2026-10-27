@@ -29,7 +29,10 @@ def _amount(value: int, label: str) -> int:
 
 
 def _json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    except (ValueError, TypeError, RecursionError) as exc:
+        raise LedgerError("provenance and receipts must be finite bounded-depth JSON") from exc
 
 
 class Ledger:
@@ -90,12 +93,16 @@ class Ledger:
         )
 
     def _totals(self) -> tuple[int, int]:
-        row = self._db.execute("""
-            SELECT COALESCE(SUM(actual),0) AS spent,
-              COALESCE(SUM(CASE WHEN actual IS NULL THEN reserved ELSE 0 END),0) AS held
-            FROM attempts
-        """).fetchone()
-        return int(row["spent"]), int(row["held"])
+        # SQLite SUM can overflow while recording multiple extreme breach receipts.
+        # Python integer totals preserve the evidence and permit permanent freeze.
+        rows = self._db.execute("SELECT actual,reserved FROM attempts")
+        spent, held = 0, 0
+        for row in rows:
+            if row["actual"] is None:
+                held += int(row["reserved"])
+            else:
+                spent += int(row["actual"])
+        return spent, held
 
     def reserve(self, attempt_id: str, max_liability: int,
                 provenance: dict[str, Any]) -> dict[str, Any]:

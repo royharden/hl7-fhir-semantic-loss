@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
+import hashlib
 from typing import Any
 
 
@@ -47,12 +48,17 @@ class MockProvider:
             raise ProviderError("mock usage must be nonnegative integer microUSD or unknown")
         if outcome in {"timeout", "unknown_usage"}:
             usage = None
+        raw_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
         if len(text) > budget["max_output_chars"]:
             return {"outcome": "cap_exceeded", "text": "", "usage_micro_usd": usage,
                     "authored_fixture": True, "fixture_index": fixture_index,
+                    "raw_output_sha256": raw_hash, "raw_output_chars": len(text),
+                    "output_omitted": True, "hidden_retries": 0, "latency_ms": None,
                     "error": "mock output exceeds bound"}
         return {"outcome": outcome, "text": text, "usage_micro_usd": usage,
                 "authored_fixture": True, "fixture_index": fixture_index,
+                "raw_output_sha256": raw_hash, "raw_output_chars": len(text),
+                "output_omitted": False,
                 "latency_ms": None, "hidden_retries": 0}
 
 

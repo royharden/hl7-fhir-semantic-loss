@@ -42,12 +42,13 @@ def map_message(raw: bytes, dictionary: dict[str, Any], *, provider: MockProvide
         if type(provider) is not MockProvider:
             result["error"] = "LIVE_DISPATCH_REFUSED: B2 construction accepts MockProvider only"
             return result
-        if (not case_id or not config_id or not model or len(raw) > 1_048_576
+        if (any(not isinstance(value, str) or not value for value in (case_id, config_id, model))
+                or not isinstance(dictionary, dict) or len(raw) > 1_048_576
                 or type(max_output_chars) is not int or not 1 <= max_output_chars <= 1_048_576):
             result["error"] = "invalid explicit identity or bounded input/output"
             return result
-        contexts = onboarding or []
-        if len(contexts) > 5 or any(not isinstance(value, str) for value in contexts):
+        contexts = [] if onboarding is None else onboarding
+        if not isinstance(contexts, list) or len(contexts) > 5 or any(not isinstance(value, str) for value in contexts):
             result["error"] = "at most five explicit onboarding strings allowed"
             return result
         try:
@@ -59,35 +60,46 @@ def map_message(raw: bytes, dictionary: dict[str, Any], *, provider: MockProvide
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": _canonical({
             "raw": raw_text, "dictionary": dictionary, "onboarding": contexts})}]
         initial_messages_hash = hashlib.sha256(_canonical(messages).encode()).hexdigest()
+        dictionary_hash = hashlib.sha256(dictionary_text.encode()).hexdigest()
+        request_identity = ["B2-v2", case_id, config_id, raw_hash, dictionary_hash,
+                            model, initial_messages_hash, max_output_chars,
+                            max_liability_micro_usd, repair_liability_micro_usd]
         for attempt_number in range(2):
+            # Keep the first-wave slot ID: request drift must conflict, never buy
+            # another call by changing model, onboarding, limits or provenance.
             attempt_id = hashlib.sha256(_canonical(["B2", case_id, config_id, raw_hash, attempt_number]).encode()).hexdigest()
             liability = max_liability_micro_usd if attempt_number == 0 else repair_liability_micro_usd
             provenance = {"arm_id": "B2", "case_id": case_id, "config_id": config_id,
-                "raw_sha256": raw_hash, "dictionary_sha256": hashlib.sha256(dictionary_text.encode()).hexdigest(),
+                "raw_sha256": raw_hash, "dictionary_sha256": dictionary_hash,
                 "model": model, "attempt_number": attempt_number, "authored_fixture": True,
+                "request_identity_sha256": hashlib.sha256(_canonical(request_identity).encode()).hexdigest(),
                 "messages_sha256": hashlib.sha256(_canonical(messages).encode()).hexdigest(),
                 "initial_messages_sha256": initial_messages_hash}
+            receipt: dict[str, Any] = {"attempt_id": attempt_id, "attempt_number": attempt_number,
+                                       "max_liability_micro_usd": liability,
+                                       "provenance": provenance, "dispatch_state": "not_dispatched"}
+            result["attempts"].append(receipt)
             try:
-                ledger.reserve(attempt_id, liability, provenance)
+                reservation = ledger.reserve(attempt_id, liability, provenance)
+                receipt["reservation_state"] = reservation["usage_state"]
+                receipt["previously_dispatched"] = bool(reservation["dispatched"])
                 ledger.mark_dispatch(attempt_id)
+                receipt["dispatch_state"] = "dispatched"
             except LedgerError as exc:
+                receipt.update(outcome="refused", error=str(exc))
                 result["error"] = f"ledger refused: {exc}"
                 return result
-            receipt: dict[str, Any] = {"attempt_id": attempt_id, "attempt_number": attempt_number,
-                                       "max_liability_micro_usd": liability}
-            result["attempts"].append(receipt)
             try:
                 response = provider.complete(messages, OUTPUT_SCHEMA, model,
                                              {"max_output_chars": max_output_chars})
             except Exception as exc:
-                ledger.settle(attempt_id, None, {"provider_exception": type(exc).__name__})
                 receipt.update({"outcome": "error", "usage_micro_usd": None,
                                 "error": str(exc)})
+                ledger.settle(attempt_id, None, {"provider_exception": type(exc).__name__})
                 result.update(outcome="error", error="provider error; reservation retained")
                 return result
             text = response["text"]
             receipt.update(response)
-            receipt["raw_output_sha256"] = hashlib.sha256(text.encode()).hexdigest()
             settlement = ledger.settle(attempt_id, response["usage_micro_usd"],
                                        {"mock_fixture_index": response.get("fixture_index"),
                                         "outcome": response["outcome"], "raw_output_sha256": receipt["raw_output_sha256"]})
@@ -119,5 +131,5 @@ def map_message(raw: bytes, dictionary: dict[str, Any], *, provider: MockProvide
         return result
 
     except (ValueError, TypeError, RecursionError, UnicodeError) as exc:
-        result.update(outcome="error", bundle=None, error="bounded_serialization_or_input_refusal:" + type(exc).__name__)
+        result.update(outcome="error", bundle=None, dispositions=[], error="bounded_serialization_or_input_refusal:" + type(exc).__name__)
         return result

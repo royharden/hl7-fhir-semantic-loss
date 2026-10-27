@@ -19,31 +19,40 @@ disposition reason. Source is either an exact complete SourceRef or the selector
 `segment/scope/field/repetition/component/subcomponent`. Indices are one based;
 scopes are message, patient, order, observation. A reusable site proposal uses
 selectors. `repetition: "all"` is exclusive to repeated_value; `component: "all"`
-is exclusive to join_components. Parser-produced lexical refs bind every match.
+is supported by join_components and the existing decimal/dictionary/repeated/unit
+transforms for bounded composite inputs. Parser-produced lexical refs bind every match.
 
 The ten fixed transforms are copy_text, decimal_with_comparator,
 timestamp_preserve_precision, dictionary_lookup, unit_from_dictionary,
 repeated_value, join_components, constant_from_dictionary, declare_drop and
-abstain. Dictionary operations use explicit `dictionary.tables[name]`: lookups
-index exact decoded text, constants index `constant`, joins use released
-`separator`. Z segments require every mapped component's explicit
+abstain. Dictionary operations prefer explicit top-level `dictionary[name]` tables,
+matching the accepted developer producer, with `dictionary.tables[name]` retained
+for explicit custom tables. Lookups index exact decoded text, constants index
+`constant`, and joins use a released `separator`. Coding entries preserve
+system/code/display and require a source coding authority permitted by the dictionary. Z segments require every mapped component's explicit
 `dictionary.bindings["Zxx.field.component.subcomponent"] == target`. Nothing
-promotes hidden/undocumented meaning. The dictionary must include matching site_id.
+promotes hidden/undocumented meaning. When dictionary.site_id is present it must match. Without that producer field,
+proposal.site_id is an explicit unverified site label bound to the unchanged exact
+dictionary hash; the result records site_label_verified=false. No dictionary_id
+string is parsed to infer a site.
 
-Targets are the closed patient.id, observation code/system/value/comparator/unit/
-status/flag/time/precision/note, and report.status slots. Executor-owned IDs follow
+Targets are the closed patient id/system, observation code/system/value/comparator/
+unit/status/flag/time/precision/note, and report code/system/status slots. Executor-owned IDs follow
 DL1's `patient:0/order:N/observation:N` lexical groups; model output cannot set
 relations. Patient identity is required before other output. Observation code and
 FHIR status are required before emitting an Observation. DiagnosticReport requires
-released dictionary.report_code plus mapped status. References are executor-owned.
+dictionary-bound mapped report.code (or an explicit dictionary.report_code coding)
+plus mapped status. Identifier system is mapped only through explicit released
+identifier_systems. Report and observation namespaces remain dictionary-bound. References are executor-owned.
 FHIR timestamps preserve original precision/offset; partial time without seconds
 or zone refuses. Numeric conversion refuses precision loss. The standalone
-precision target refuses pending an admitted extension contract. ServiceRequest,
-SN/CWE semantic conversion and cross-scope source selectors are unsupported here.
+precision target refuses pending an admitted extension contract. ServiceRequest
+and cross-scope source selectors remain unsupported. Bounded SN/CWE conversion
+is described in INTEGRATION002.md.
 No IG conformance is claimed. Empty/null/unsupported atoms and unmatched rules
 produce explicit abstentions; mapping conflicts fail the whole output.
 
-`propose_site(dictionary, onboarding, *, provider, ledger, config_id, model, ...)`
+`propose_site(dictionary, onboarding, *, provider, ledger, config_id, model, site_id=None, ...)`
 is mock-only, at most five explicit onboarding strings, one initial proposal and
 one local schema-only repair. No scores, truth, user-supplied feedback callbacks,
 Java or roundtrip feedback enter this path. Reusing dispatched site/config/hash
