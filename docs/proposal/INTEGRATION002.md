@@ -9,6 +9,16 @@ explicit compatibility path. Original dictionary bytes/hash are not rewritten.
 Producer site_id is checked if present; absent site_id produces an explicitly
 unverified site label, with exact proposal.site_id and dictionary hash retained.
 See OUTER DL2-DICTIONARY-INTEGRATION002.md for the producer-owned site_id request.
+UPDATE005 resolves that request in accepted producer d77daaa: new releases include
+site_id, derived scalar table views and report_code as a nonempty display STRING.
+The executor uses that fallback exactly as DiagnosticReport.code.text; it does not
+invent a coding namespace. Explicit report.code/report.system mappings still require
+a dictionary-bound coding. Scalar code views are checked against canonical entries;
+overlapping mapped sources merge emitted target pointers, while mapped-versus-drop/
+abstain conflicts and duplicate target assignments refuse.
+The canonical flags map carries released local Coding entries; those are emitted
+as interpretation.coding, while an explicit scalar flag view remains text. Flag
+pointers resolve to the emitted interpretation element in either representation.
 
 The selector component="all" may bind existing decimal_with_comparator,
 dictionary_lookup, repeated_value and unit_from_dictionary to one complete
