@@ -16,3 +16,9 @@ No tests run or test environment installed in Dirty Mode. Later activation must 
   opening truth, generating signatures or dispatching a provider; usage-error behavior.
 
 These are future checks, not independent expected outcomes or held-out truth data.
+
+Integration follow-up: literal B0 mapped/partial, DSL ok/error and mock produced/refused
+exits; developer generator/dictionary hashes; persistent two-attempt mock accounting,
+cap/unknown/reuse behavior; simulated ruling CAS/current file hashes, input/journal/lock
+alias refusals, supplement hashes and replay. No actual independent truth, real freeze
+signatures or measured model outcomes authored here.
