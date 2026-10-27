@@ -1,0 +1,20 @@
+{
+  "status": "pending_roy_appointments",
+  "scope": "Construction attribution only; not admission or independent review",
+  "construction_contributor": {
+    "seat": "M12-TEAM-DL4",
+    "workspace_callsign": "0920_Codex_gpt-61-sol_N20M12TEAMDL4",
+    "app_callsign": "0001_Codex_gpt-61-sol_N20M12TEAMDL4",
+    "session_id": "01a17eff-14c2-7e03-811f-638a41f4d7ae",
+    "lineage": "B",
+    "scope": "CLI, report rendering and user documentation"
+  },
+  "required_roles": {
+    "O": {"status": "PENDING - needs Roy", "identity": null, "signature": null},
+    "H": {"status": "PENDING - needs Roy", "identity": null, "signature": null},
+    "Q": {"status": "PENDING - needs Roy", "identity": null, "signature": null},
+    "R": {"status": "optional; not appointed", "identity": null, "signature": null}
+  },
+  "blindness": "Not certified. This construction team read the public promoted plan and interfaces; no held-out authoring or truth access is authorized.",
+  "claim_wording": "Agent-authored construction, runtime unverified; no independent, human or clinical expert validation claimed."
+}
