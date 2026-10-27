@@ -23,18 +23,27 @@ Malformed dictionary maps return explicit refusal with leaf abstentions.
 Metadata without a specific rule is abstained, never validated terminology.
 Every parsed leaf receives a disposition. Mapping unknown/null/unsupported
 values is refused. Repeated OBX-5 leaves produce separate Observations under the
-same order, with Patient and DiagnosticReport links. Unmapped fields including
-timestamps, flags and notes currently abstain. Reports require code/status;
+same order, with Patient and DiagnosticReport links. Explicit `time_fields`
+meaning enables OBR-7/OBX-14 conversion to effectiveDateTime, preserving date-only
+precision or full seconds/fractions with the supplied numeric offset. Partial
+time or missing timezone refuses conversion. Explicit original `flags` maps
+enable distinct OBX-8 repetitions in Observation.interpretation. `note_scopes`
+permits scoped NTE-3: observation notes become distinct Annotation text entries;
+order notes become distinct original order-note extension values. No meaning is
+inferred for absent dictionary entries. Reports require code/status;
 Observations require report, code/status/value and numeric unit when applicable.
 NM/SN numerical conversion rejects nonfinite/changed decimal values and retains
 the original number lexeme. SN ranges beyond comparator/number are unsupported.
 
 No IG file/hash lock is available: the rules remain original/unadmitted, with
-`ig_rule_lock=PENDING`. No Java pass is asserted. The paired inverse currently
-returns explicit unsupported; replaying preserved source bytes would conceal
-forward loss and must not be presented as semantic round-trip success.
+`ig_rule_lock=PENDING`. No Java pass is asserted. `paired_inverse(result,dictionary)`
+reconstructs only declared mapped source leaf text from actual resource values,
+safe bundle pointers and the hash-bound public dictionary. It reports unsupported
+source leaves and observed links explicitly; see paired.md. It never replays raw
+bytes and never reports a roundtrip pass. This paired builder control is not an
+independent renderer, oracle or Q truth.
 
 Deferred: installed-wheel integration, byte/ref/escape/cap regression tests,
 dictionary input validation, NM/SN/ST/CWE fidelity, every-atom ledger checks,
 actual FHIR validation, mapping IG/rights admission and pinned rule citations,
-semantic inverse and independently owned truth/fidelity/calibration gates.
+paired-projection runtime checks and independently owned truth/fidelity/calibration gates.
