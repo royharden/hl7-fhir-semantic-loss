@@ -27,3 +27,9 @@ Live dispatch, accounts, keys, spending, network, publication and pushes are dis
 this construction phase. The USD40 lifetime ceiling is not dispatch approval. Later
 activation needs the real admission, role, budget, isolation, runtime and review gates;
 public promotion additionally needs Roy's approval.
+
+Mock accounting is simulated and cannot establish provider cost. Only simulated
+rulings can be appended by this CLI; actor/freeze/evidence hashes confer no independent
+appointment, custody authority or admission. B0/DSL consume the same released dictionary
+including derived scalar tables; no automatic conversion or undocumented meaning is
+invented for legacy or incomplete dictionaries.
