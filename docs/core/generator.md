@@ -15,7 +15,11 @@ material, marked `NOT_ADMITTED`; rights and independent semantic review remain
 pending. The dictionary contains no copied standard terminology or external
 dictionary. `codes` describes observation codes; `units` describes the original
 `du` unit; `value_codes` describes the original categorical values. These maps are
-explicit released developer metadata, not an oracle. `z_segments` is empty: the
+explicit released developer metadata, not an oracle. `site_id`, scalar `tables`,
+empty `bindings`, and string `report_code` are views derived from the same original
+maps for the current DSL API. Canonical hashing matches the DSL's sorted compact
+ASCII-escaped JSON and rejects nonfinite numbers. `time_fields`, `note_scopes`,
+and original `flags` explicitly release local meanings for B0. `z_segments` is empty: the
 opaque ZDV field contents have no released semantic meaning.
 
 The source varies NM/SN/ST/CWE, CR/CRLF, one/two orders, one/two/three observations,
