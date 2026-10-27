@@ -149,6 +149,11 @@ def _transform(rule: dict, text: str, dictionary: dict, components: list[str] | 
         if not isinstance(table, dict):
             raise ValueError("missing_dictionary_table")
         key = "constant" if name == "constant_from_dictionary" else text
+        if name=="dictionary_lookup" and rule.get("target")=="observation.flag" and isinstance(table.get(key),dict):
+            entry=table[key]
+            if not all(isinstance(entry.get(k),str) and entry[k] for k in ("system","code")) or ("display" in entry and not isinstance(entry["display"],str)):
+                raise ValueError("invalid_flag_dictionary_entry")
+            return {k:v for k,v in entry.items() if k in {"system","code","display"}}
         if key not in table or not isinstance(table[key], str) or not table[key]:
             raise ValueError("unknown_dictionary_meaning")
         return table[key]
@@ -234,7 +239,12 @@ def _resources(slots: dict, dictionary: dict) -> list[dict]:
         code = slots.get((group, "report.code", 0), dictionary.get("report_code"))
         if status not in {"registered", "partial", "preliminary", "final", "amended", "corrected", "appended", "cancelled", "entered-in-error", "unknown"} or not code:
             raise ValueError("report_required_fields_missing_or_invalid")
-        concept = _concept(code, slots.get((group, "report.system", 0)), dictionary)
+        # The accepted producer publishes report_code as an original panel display,
+        # not a coding object or coding system. Preserve that exact representation.
+        if (group,"report.code",0) not in slots and (group,"report.system",0) not in slots and isinstance(code,str) and code.strip():
+            concept = {"text":code}
+        else:
+            concept = _concept(code, slots.get((group, "report.system", 0)), dictionary)
         report = {"resourceType": "DiagnosticReport", "id": _resource_id(group, "DiagnosticReport"),
                   "status": status, "code": concept, "subject": {"reference": "Patient/"+patient_id}, "result": []}
         reports[group] = report
@@ -267,7 +277,8 @@ def _resources(slots: dict, dictionary: dict) -> list[dict]:
             if "observation.precision" in common:
                 raise ValueError("precision_target_requires_released_extension")
             if "observation.flag" in common:
-                observation["interpretation"]=[{"text":common["observation.flag"]}]
+                flag=common["observation.flag"]
+                observation["interpretation"]=[{"coding":[flag]}] if isinstance(flag,dict) else [{"text":flag}]
             notes=[v for (g,target,_rep),v in slots.items() if g == group and target == "observation.note"]
             if notes:
                 observation["note"]=[{"text":v} for v in notes]
@@ -312,7 +323,7 @@ def _paths(bundle: dict, group: str, target: str, rep: int, slots: dict) -> list
                 "report.status":"status","report.code":"code/coding/0","report.system":"code/coding/0/system",
                 "observation.code":"code/coding/0","observation.system":"code/coding/0/system",
                 "observation.status":"status","observation.unit":"valueQuantity",
-                "observation.comparator":"valueQuantity/comparator","observation.flag":"interpretation/0/text",
+                "observation.comparator":"valueQuantity/comparator","observation.flag":"interpretation/0",
                 "observation.time":"effectiveDateTime"}.get(target)
         if target == "observation.value":
             suffix=next((key for key in resource if key.startswith("value")),None)
@@ -343,7 +354,7 @@ def execute_proposal(raw: bytes, dictionary: dict, proposal: dict) -> dict:
             raise ValueError("message_too_large")
         if not isinstance(dictionary,dict):
             raise ValueError("dictionary_mapping_required")
-        for name in ("tables","bindings","codes","units","value_codes","identifier_systems","observation_statuses","report_statuses","coding_authorities"):
+        for name in ("tables","bindings","codes","units","value_codes","flags","identifier_systems","observation_statuses","report_statuses","coding_authorities"):
             if not isinstance(dictionary.get(name,{}),dict):
                 raise ValueError("dictionary_mapping_required:"+name)
         if hashlib.sha256(_canonical(dictionary)).hexdigest()!=proposal["dictionary_sha256"]:
@@ -371,6 +382,7 @@ def execute_proposal(raw: bytes, dictionary: dict, proposal: dict) -> dict:
         contributions=[]
         type_support=[]
         used=set()
+        mapped_sources=set()
         for rule in compiled["proposal"]["rules"]:
             matching=[ref for ref in refs if _matches(rule["source"],ref,tags)]
             if set(rule["source"])==REF_KEYS and not matching:
@@ -429,7 +441,18 @@ def execute_proposal(raw: bytes, dictionary: dict, proposal: dict) -> dict:
                         authority=components.get(3)
                         if not isinstance(table,dict) or not code_atom or not authority or authority["empty"] or authority["unsupported"] or authority["null"]:
                             raise ValueError("coded_source_namespace_required")
-                        value=coding_entry(table.get(code_atom["text"]),authority["text"],dictionary)
+                        entry=table.get(code_atom["text"])
+                        if isinstance(entry,str):
+                            # Scalar code views are part of the same hashed release;
+                            # verify them against its canonical code entry, retaining
+                            # source authority checks and the original namespace.
+                            canonical=dictionary.get("units" if target=="observation.unit" else "codes",{}).get(code_atom["text"])
+                            value=coding_entry(canonical,authority["text"],dictionary)
+                            expected=value["code"]
+                            if entry!=expected:
+                                raise ValueError("scalar_coding_view_conflict")
+                        else:
+                            value=coding_entry(entry,authority["text"],dictionary)
                         consumed=[code_atom["source_ref"],authority["source_ref"]]
                         display=components.get(2)
                         if display and display["text"]==value.get("display") and not display["unsupported"] and not display["null"]:
@@ -449,7 +472,7 @@ def execute_proposal(raw: bytes, dictionary: dict, proposal: dict) -> dict:
                             binding=f"{tags[bound['segment_index']]}.{bound['field']}.{bound['component']}.{bound['subcomponent']}"
                             if dictionary.get("bindings",{}).get(binding)!=target:
                                 raise ValueError("undocumented_z_meaning")
-                if any(_canonical(r) in used for r in consumed):
+                if any(_canonical(r) in used and (transform in {"declare_drop","abstain"} or _canonical(r) not in mapped_sources) for r in consumed):
                     raise ValueError("conflicting_source_dispositions")
                 used.update(_canonical(r) for r in consumed)
                 if transform in {"declare_drop","abstain"}:
@@ -462,6 +485,7 @@ def execute_proposal(raw: bytes, dictionary: dict, proposal: dict) -> dict:
                     raise ValueError("conflicting_target")
                 assigned[slot]=value
                 contributions.append((consumed,slot))
+                mapped_sources.update(_canonical(r) for r in consumed)
                 if target=="observation.value" and tags[index]=="OBX" and ref["field"]==5:
                     type_support.append((dtype["source_ref"],slot))
         resources=_resources(assigned,dictionary)
@@ -472,7 +496,7 @@ def execute_proposal(raw: bytes, dictionary: dict, proposal: dict) -> dict:
                 raise ValueError("mapped_target_missing")
             for source in consumed:
                 row=rows[_canonical(source)]
-                row.update(disposition="mapped",reason_code="dsl_dictionary_rule",target_refs=paths,
+                row.update(disposition="mapped",reason_code="dsl_dictionary_rule",target_refs=list(dict.fromkeys(row["target_refs"]+paths)),
                            evidence_refs=[proposal["dictionary_sha256"],compiled["sha256"]])
         for source,(group,target,rep) in type_support:
             key=_canonical(source)

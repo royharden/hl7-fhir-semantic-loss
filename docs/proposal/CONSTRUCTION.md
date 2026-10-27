@@ -41,7 +41,8 @@ unit/status/flag/time/precision/note, and report code/system/status slots. Execu
 DL1's `patient:0/order:N/observation:N` lexical groups; model output cannot set
 relations. Patient identity is required before other output. Observation code and
 FHIR status are required before emitting an Observation. DiagnosticReport requires
-dictionary-bound mapped report.code (or an explicit dictionary.report_code coding)
+dictionary-bound mapped report.code (or dictionary.report_code display STRING,
+preserved as code.text without an invented namespace)
 plus mapped status. Identifier system is mapped only through explicit released
 identifier_systems. Report and observation namespaces remain dictionary-bound. References are executor-owned.
 FHIR timestamps preserve original precision/offset; partial time without seconds
