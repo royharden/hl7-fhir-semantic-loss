@@ -24,7 +24,7 @@ def _site_number(site_id: str) -> int:
 
 
 def _canonical_hash(value: dict[str, Any]) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
     return hashlib.sha256(encoded.encode("ascii")).hexdigest()
 
 
@@ -41,7 +41,8 @@ def development_dictionary(site_id: str = "dev-01") -> dict[str, Any]:
     ):
         code = f"D{site:02d}{kind}"
         codes[code] = {"system": system, "code": code, "display": display}
-    return {
+    dictionary = {
+        "site_id": site_id,
         "dictionary_id": f"h7loss-{site_id}-authored-v1",
         "provenance": {
             "kind": "original_developer_authored",
@@ -61,6 +62,11 @@ def development_dictionary(site_id: str = "dev-01") -> dict[str, Any]:
             system, f"urn:h7loss:dev:{site_id}:panel",
             f"urn:h7loss:dev:{site_id}:category", "urn:h7loss:dev:units",
         ]},
+        "time_fields": {"OBR.7": "report_effective", "OBX.14": "observation_effective"},
+        "note_scopes": {"NTE.3": ["order", "observation"]},
+        "flags": {token: {"system": "urn:h7loss:dev:flags", "code": token,
+                          "display": display} for token, display in (
+                              ("A", "Authored synthetic abnormal"), ("H", "Authored synthetic high"))},
         "units": {
             "du": {
                 "system": "urn:h7loss:dev:units",
@@ -82,6 +88,18 @@ def development_dictionary(site_id: str = "dev-01") -> dict[str, Any]:
         },
         "z_segments": {},
     }
+    # Consumer views are derived from the original maps, never authored twice.
+    dictionary["tables"] = {
+        "observation_codes": {key: value["code"] for key, value in codes.items()},
+        "observation_systems": {key: value["system"] for key, value in codes.items()},
+        "units": {key: value["code"] for key, value in dictionary["units"].items()},
+        "observation_statuses": dict(dictionary["observation_statuses"]),
+        "report_statuses": dict(dictionary["report_statuses"]),
+        "flags": {key: value["code"] for key, value in dictionary["flags"].items()},
+    }
+    dictionary["bindings"] = {}
+    dictionary["report_code"] = dictionary["codes"]["DEVPANEL"]["display"]
+    return dictionary
 
 
 def _segment(tag: str, fields: dict[int, str]) -> str:
