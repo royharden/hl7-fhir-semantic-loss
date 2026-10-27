@@ -32,3 +32,13 @@ Deferred: installed CLI/Typer, supported/partial/refused exits, full developer j
 same-release dictionary hash agreement, mock attempts/unknown usage/persistence, journal
 CAS/durability/alias negatives, HTML injection and real Windows filesystem race/locking
 semantics. Guards inspect existing paths; no race-proof filesystem containment claim.
+
+UPDATE005 follow-up: reviewed 825b7f2 preserved; accepted c6cc5b2 runner/archive source
+merged at d7901fd7460bd0907b8884fe071192019cc25726. No evaluation import added to src.
+PORTS005 requires new simulation journals; CLI now rejects an existing journal or lock,
+including dangling symlinks, before store access. Fresh Medium reviewer
+0024_Codex_gpt-61-sol_Sub_DL4PortsReview returned PASS on this bounded delta and docs:
+explicit simulation retained, JSON error/exit 1 on existing paths, one new journal
+record per CLI action, replay retains prior behavior. AST and staged whitespace checks
+passed. Provisional DL2 as-built port guidance read; consumed common signatures match
+the accepted baseline, optional legacy site_id remains unexposed pending a pinned port.

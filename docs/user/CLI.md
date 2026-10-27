@@ -61,7 +61,11 @@ This differs from DSL's canonical dictionary hash. Optional `--supplement` suppl
 explicit fictional supplement bytes. Only `--simulate` can append. Supplied actor,
 freeze and evidence hashes confer no independent identity, custody authority or study
 admission. Original obligation/revision/chain stay intact. No CLI command applies a
-ruling to primary data/truth. Journals and locks cannot alias input files.
+ruling to primary data/truth. Journals and locks cannot alias input files. Per PORTS005,
+the CLI initializes one record in a new simulation journal/lock path only; existing
+journals are preserved and can be inspected with rule-replay. General multi-record
+append remains a RulingStore source API, not an admitted CLI action. Path guards do not
+claim atomic race-proof filesystem containment.
 
 JSON inputs are bounded to 4 MiB and 64 container levels. Report input is an explicit
 JSON object. It is rendered as an escaped,
