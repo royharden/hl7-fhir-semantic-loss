@@ -289,6 +289,9 @@ def rule(request: Path, source: Annotated[Path, typer.Option()],
         key = value["key"]
         if not isinstance(key, dict):
             raise ValueError("ruling key must be an object")
+        lock = journal.with_suffix(journal.suffix + ".lock")
+        if journal.exists() or journal.is_symlink() or lock.exists() or lock.is_symlink():
+            raise ValueError("new simulation journal and lock paths required; existing evidence preserved")
         _distinct([journal], [journal.with_suffix(journal.suffix + ".lock")])
         _distinct([journal, journal.with_suffix(journal.suffix + ".lock")],
                   [request, source, dictionary, mapping] + ([supplement] if supplement else []))
