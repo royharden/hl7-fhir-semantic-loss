@@ -13,15 +13,17 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from .values import coding_entry, decode_value, render_value
+
 TRANSFORMS = frozenset({
     "copy_text", "decimal_with_comparator", "timestamp_preserve_precision",
     "dictionary_lookup", "unit_from_dictionary", "repeated_value", "join_components",
     "constant_from_dictionary", "declare_drop", "abstain",
 })
 TARGETS = frozenset({
-    "patient.id", "observation.code", "observation.system", "observation.value",
+    "patient.id", "patient.system", "observation.code", "observation.system", "observation.value",
     "observation.comparator", "observation.unit", "observation.status", "observation.flag",
-    "observation.time", "observation.precision", "observation.note", "report.status",
+    "observation.time", "observation.precision", "observation.note", "report.status", "report.code", "report.system",
 })
 REF_KEYS = frozenset({"raw_sha256", "segment_index", "group_id", "field", "repetition",
                       "component", "subcomponent", "byte_start", "byte_end"})
@@ -54,7 +56,7 @@ PROPOSAL_SCHEMA = {
                 {"if": {"properties": {"source": {"properties": {"repetition": {"const": "all"}}}}},
                  "then": {"properties": {"transform": {"const": "repeated_value"}}}},
                 {"if": {"properties": {"source": {"properties": {"component": {"const": "all"}}}}},
-                 "then": {"properties": {"transform": {"const": "join_components"}}}}
+                 "then": {"properties": {"transform": {"enum": ["join_components", "decimal_with_comparator", "dictionary_lookup", "repeated_value", "unit_from_dictionary"]}}}}
             ]}}
     }
 }
@@ -117,7 +119,7 @@ def validate_proposal(proposal: dict) -> dict:
             for key in ("field", "repetition", "component", "subcomponent"):
                 if key == "repetition" and source[key] == "all" and transform == "repeated_value":
                     continue
-                if key == "component" and source[key] == "all" and transform == "join_components":
+                if key == "component" and source[key] == "all" and transform in {"join_components", "decimal_with_comparator", "dictionary_lookup", "repeated_value", "unit_from_dictionary"}:
                     continue
                 if type(source[key]) is not int or source[key] < 1:
                     errors.append(prefix + key)
@@ -143,7 +145,7 @@ def _transform(rule: dict, text: str, dictionary: dict, components: list[str] | 
         return text
     if name in {"dictionary_lookup", "unit_from_dictionary", "constant_from_dictionary"}:
         tables = dictionary.get("tables", {})
-        table = tables.get(rule.get("dictionary"))
+        table = dictionary.get(rule.get("dictionary"), tables.get(rule.get("dictionary")))
         if not isinstance(table, dict):
             raise ValueError("missing_dictionary_table")
         key = "constant" if name == "constant_from_dictionary" else text
@@ -208,233 +210,280 @@ def _resource_id(group: str, kind: str, repetition: int = 0) -> str:
     return kind.lower() + "-" + hashlib.sha256(f"{group}:{repetition}".encode()).hexdigest()[:24]
 
 
-def _number(text: str) -> int | float:
-    value = Decimal(text)
-    number = int(value) if value == value.to_integral_value() else float(value)
-    if Decimal(str(number)) != value:
-        raise ValueError("numeric_precision_loss")
-    return number
-
-
 def _resources(slots: dict, dictionary: dict) -> list[dict]:
-    """Construct resources/relations from parser groups, never model-written paths."""
+    """Build only explicit supplied fields; resource relationships follow parser groups."""
     groups = sorted({group for group, _target, _rep in slots})
     resources: list[dict] = []
     patient_id = _resource_id("patient:0", "Patient")
-    has_patient = ("patient:0", "patient.id", 0) in slots
-    if slots and not has_patient:
+    identity = slots.get(("patient:0", "patient.id", 0))
+    if slots and (not isinstance(identity, str) or not identity):
         raise ValueError("missing_patient_identifier")
-    if has_patient:
-        identifier = slots[("patient:0", "patient.id", 0)]
-        if not isinstance(identifier, str) or not identifier:
-            raise ValueError("invalid_patient_identifier")
-        resources.append({"resourceType": "Patient", "id": patient_id, "identifier": [{"value": identifier}]})
-    reports: dict[str, dict] = {}
+    if identity:
+        identifier = {"value": identity}
+        system = slots.get(("patient:0", "patient.system", 0))
+        if system is not None:
+            if system not in dictionary.get("identifier_systems", {}).values():
+                raise ValueError("identifier_namespace_not_released")
+            identifier["system"] = system
+        resources.append({"resourceType": "Patient", "id": patient_id, "identifier": [identifier]})
+    reports = {}
     for group in groups:
-        if _scope(group) == "order":
-            status = slots.get((group, "report.status", 0))
-            code = dictionary.get("report_code")
-            if status not in {"registered", "partial", "preliminary", "final", "amended", "corrected", "appended", "cancelled", "entered-in-error", "unknown"} or not isinstance(code, str) or not code:
-                raise ValueError("report_required_fields_missing_or_invalid")
-            report = {"resourceType": "DiagnosticReport", "id": _resource_id(group, "DiagnosticReport"),
-                      "status": status, "code": {"text": code}, "subject": {"reference": "Patient/" + patient_id}, "result": []}
-            reports[group] = report
-            resources.append(report)
+        if _scope(group) != "order":
+            continue
+        status = slots.get((group, "report.status", 0))
+        code = slots.get((group, "report.code", 0), dictionary.get("report_code"))
+        if status not in {"registered", "partial", "preliminary", "final", "amended", "corrected", "appended", "cancelled", "entered-in-error", "unknown"} or not code:
+            raise ValueError("report_required_fields_missing_or_invalid")
+        concept = _concept(code, slots.get((group, "report.system", 0)), dictionary)
+        report = {"resourceType": "DiagnosticReport", "id": _resource_id(group, "DiagnosticReport"),
+                  "status": status, "code": concept, "subject": {"reference": "Patient/"+patient_id}, "result": []}
+        reports[group] = report
+        resources.append(report)
     for group in groups:
         if _scope(group) != "observation":
             continue
-        common = {target: value for (g, target, rep), value in slots.items() if g == group and rep == 0}
-        repeated = {rep: value for (g, target, rep), value in slots.items() if g == group and target == "observation.value" and rep > 0}
-        if repeated and "observation.value" in common:
-            raise ValueError("conflicting_scalar_and_repeated_value")
-        variants = repeated or {0: common.get("observation.value")}
-        for repetition, value in sorted(variants.items()):
-            if common.get("observation.status") not in {"registered", "preliminary", "final", "amended", "corrected", "cancelled", "entered-in-error", "unknown"} or not isinstance(common.get("observation.code"), str):
-                raise ValueError("observation_required_fields_missing_or_invalid")
-            observation = {"resourceType": "Observation", "id": _resource_id(group, "Observation", repetition),
-                           "status": common["observation.status"], "code": {"coding": [{"code": common["observation.code"]}]},
-                           "subject": {"reference": "Patient/" + patient_id}}
-            if "observation.system" in common:
-                observation["code"]["coding"][0]["system"] = common["observation.system"]
-            if isinstance(value, dict):
-                quantity = {"value": _number(value["value"])}
-                comparator = value.get("comparator") or common.get("observation.comparator")
-                if value.get("comparator") and common.get("observation.comparator") and value["comparator"] != common["observation.comparator"]:
+        common = {target: value for (g,target,rep),value in slots.items() if g == group and rep == 0}
+        variants = {rep: value for (g,target,rep),value in slots.items() if g == group and target == "observation.value"}
+        if not variants:
+            raise ValueError("observation_value_not_supplied")
+        if common.get("observation.status") not in {"registered", "preliminary", "final", "amended", "corrected", "cancelled", "entered-in-error", "unknown"}:
+            raise ValueError("observation_status_unknown")
+        concept = _concept(common.get("observation.code"), common.get("observation.system"), dictionary)
+        for repetition,value in sorted(variants.items()):
+            observation = {"resourceType":"Observation", "id":_resource_id(group,"Observation",repetition),
+                           "status":common["observation.status"], "code":concept,
+                           "subject":{"reference":"Patient/"+patient_id}}
+            if "observation.comparator" in common:
+                if not isinstance(value,dict) or value.get("kind") != "quantity":
+                    raise ValueError("comparator_requires_quantity")
+                value = dict(value)
+                comparator = common["observation.comparator"]
+                if comparator not in {"<","<=",">",">="} or value.get("comparator") not in (None,comparator):
                     raise ValueError("conflicting_comparator")
-                if comparator:
-                    if comparator not in {"<", "<=", ">=", ">"}:
-                        raise ValueError("invalid_comparator")
-                    quantity["comparator"] = comparator
-                if "observation.unit" in common:
-                    quantity["unit"] = common["observation.unit"]
-                observation["valueQuantity"] = quantity
-            elif isinstance(value, str):
-                if "observation.unit" in common or "observation.comparator" in common:
-                    raise ValueError("unit_or_comparator_requires_quantity")
-                observation["valueString"] = value
-            elif value is not None:
-                raise ValueError("unsupported_value")
-            elif "observation.unit" in common or "observation.comparator" in common:
-                raise ValueError("orphan_quantity_metadata")
+                value["comparator"] = comparator
+            observation.update(render_value(value, common.get("observation.unit")))
             if "observation.time" in common:
                 observation["effectiveDateTime"] = common["observation.time"]
             if "observation.precision" in common:
                 raise ValueError("precision_target_requires_released_extension")
             if "observation.flag" in common:
-                observation["interpretation"] = [{"text": common["observation.flag"]}]
-            notes = [value for (g, target, _rep), value in slots.items() if g == group and target == "observation.note"]
+                observation["interpretation"]=[{"text":common["observation.flag"]}]
+            notes=[v for (g,target,_rep),v in slots.items() if g == group and target == "observation.note"]
             if notes:
-                observation["note"] = [{"text": text} for text in notes]
+                observation["note"]=[{"text":v} for v in notes]
             resources.append(observation)
-            order_group = group.split("/observation:", 1)[0]
+            order_group=group.split("/observation:",1)[0]
             if order_group in reports:
-                reports[order_group]["result"].append({"reference": "Observation/" + observation["id"]})
+                reports[order_group]["result"].append({"reference":"Observation/"+observation["id"]})
     return resources
 
 
+def _concept(code: Any, system: Any, dictionary: dict) -> dict:
+    if isinstance(code, dict):
+        if system is not None and system != code.get("system"):
+            raise ValueError("conflicting_coding_namespace")
+        if not all(isinstance(code.get(k),str) and code[k] for k in ("code","system")):
+            raise ValueError("coding_dictionary_entry_required")
+        return {"coding":[code]}
+    if isinstance(code,str) and isinstance(system,str):
+        for entry in dictionary.get("codes",{}).values():
+            if isinstance(entry,dict) and entry.get("code") == code and entry.get("system") == system:
+                return {"coding":[{k:v for k,v in entry.items() if k in {"code","system","display"}}]}
+    raise ValueError("released_coding_namespace_required")
+
+
+def _row(ref: dict, reason: str = "no_bound_rule") -> dict:
+    return {"source_ref":ref,"disposition":"abstain","reason_code":reason,"target_refs":[],"evidence_refs":[]}
+
+
+def _paths(bundle: dict, group: str, target: str, rep: int, slots: dict) -> list[str]:
+    kind="Patient" if target.startswith("patient.") else "DiagnosticReport" if target.startswith("report.") else "Observation"
+    repetitions=sorted({r for g,t,r in slots if g == group and t == "observation.value"}) if kind == "Observation" else [0]
+    if target == "observation.value":
+        repetitions=[rep]
+    paths=[]
+    for repetition in repetitions:
+        identity=_resource_id(group,kind,repetition)
+        position=next((i for i,e in enumerate(bundle["entry"]) if e["resource"]["resourceType"] == kind and e["resource"]["id"] == identity),None)
+        if position is None:
+            raise ValueError("emitted_target_resource_missing")
+        resource=bundle["entry"][position]["resource"]
+        suffix={"patient.id":"identifier/0/value","patient.system":"identifier/0/system",
+                "report.status":"status","report.code":"code/coding/0","report.system":"code/coding/0/system",
+                "observation.code":"code/coding/0","observation.system":"code/coding/0/system",
+                "observation.status":"status","observation.unit":"valueQuantity",
+                "observation.comparator":"valueQuantity/comparator","observation.flag":"interpretation/0/text",
+                "observation.time":"effectiveDateTime"}.get(target)
+        if target == "observation.value":
+            suffix=next((key for key in resource if key.startswith("value")),None)
+        if target == "observation.unit" and "valueRange" in resource:
+            paths.extend([f"/entry/{position}/resource/valueRange/{bound}" for bound in ("low","high")])
+            continue
+        if target == "observation.note":
+            note_slots=[slot for slot in slots if slot[0] == group and slot[1] == target]
+            suffix=f"note/{note_slots.index((group,target,rep))}/text"
+        if suffix is None:
+            raise ValueError("unsupported_target_pointer")
+        paths.append(f"/entry/{position}/resource/{suffix}")
+    for path in paths:
+        current=bundle
+        for token in path.split("/")[1:]:
+            current=current[int(token)] if isinstance(current,list) else current[token]
+    return paths
+
+
 def execute_proposal(raw: bytes, dictionary: dict, proposal: dict) -> dict:
-    """Execute exact bound rules; fail the entire output on any conflicting mapping.
-
-    Parser refs are authoritative lexical coordinates. Callers cannot make a valid
-    pointer simply by supplying a matching byte range from another segment/group.
-    """
-    result: dict = {"case_id": hashlib.sha256(raw).hexdigest(), "arm_id": "A",
-                    "outcome": "error", "bundle": None, "dispositions": [], "error": None}
+    """Bind every mapped row to an actually emitted, resolvable JSON pointer."""
+    result={"case_id":hashlib.sha256(raw).hexdigest(),"arm_id":"A","outcome":"error",
+            "bundle":None,"dispositions":[],"error":None}
+    refs=[]
     try:
-        compiled = compile_proposal(proposal)
-        if len(raw) > 1048576:
+        compiled=compile_proposal(proposal)
+        if len(raw)>1048576:
             raise ValueError("message_too_large")
-        if hashlib.sha256(_canonical(dictionary)).hexdigest() != proposal["dictionary_sha256"]:
-            raise ValueError("stale_dictionary")
-        if not isinstance(dictionary, dict) or not isinstance(dictionary.get("tables", {}), dict) or not isinstance(dictionary.get("bindings", {}), dict):
+        if not isinstance(dictionary,dict):
             raise ValueError("dictionary_mapping_required")
-        if dictionary.get("site_id") != proposal["site_id"]:
+        for name in ("tables","bindings","codes","units","value_codes","identifier_systems","observation_statuses","report_statuses","coding_authorities"):
+            if not isinstance(dictionary.get(name,{}),dict):
+                raise ValueError("dictionary_mapping_required:"+name)
+        if hashlib.sha256(_canonical(dictionary)).hexdigest()!=proposal["dictionary_sha256"]:
+            raise ValueError("stale_dictionary")
+        site=dictionary.get("site_id")
+        if site is not None and site!=proposal["site_id"]:
             raise ValueError("site_mismatch")
+        result.update(raw_sha256=result["case_id"],dictionary_sha256=proposal["dictionary_sha256"],
+                      site_id=proposal["site_id"],site_label_verified=site is not None)
         from h7loss.v2 import parse_message
-
-        parsed = parse_message(raw)
-        if parsed.get("unsupported") or parsed.get("errors"):
+        parsed=parse_message(raw)
+        refs=parsed["source_refs"]
+        if parsed["errors"] or parsed["unsupported"]:
             raise ValueError("unsupported_parser_input")
-        refs = parsed.get("source_refs")
-        if not isinstance(refs, list) or not refs:
+        if not refs:
             raise ValueError("parser_source_refs_unavailable")
-        available = {_canonical(ref): ref for ref in refs if isinstance(ref, dict)}
-        assigned: dict[tuple[str, str, int], Any] = {}
-        used: set[bytes] = set()
-        tags = {segment["index"]: segment["tag"] for segment in parsed["segments"]}
-        atoms = {_canonical(atom["source_ref"]): atom for atom in parsed.get("atoms", [])}
+        tags={s["index"]:s["tag"] for s in parsed["segments"]}
+        atoms={_canonical(a["source_ref"]):a for a in parsed["atoms"]}
+        fields={}
+        for atom in parsed["atoms"]:
+            source=atom["source_ref"]
+            fields.setdefault((source["segment_index"],source["field"],source["repetition"]),[]).append(atom)
+        rows={key:_row(a["source_ref"],"explicit_null_not_asserted" if a["null"] else "empty_lexical_slot" if a["empty"] else "unsupported_atom" if a["unsupported"] else "no_bound_rule") for key,a in atoms.items()}
+        assigned={}
+        contributions=[]
+        type_support=[]
+        used=set()
         for rule in compiled["proposal"]["rules"]:
-            matching = [ref for ref in refs if _matches(rule["source"], ref, tags)]
-            if set(rule["source"]) == REF_KEYS and not matching:
+            matching=[ref for ref in refs if _matches(rule["source"],ref,tags)]
+            if set(rule["source"])==REF_KEYS and not matching:
                 raise ValueError("fake_source_pointer")
+            grouped=set()
             for ref in matching:
-                key = _canonical(ref)
-                siblings = [ref]
-                if rule["transform"] == "join_components":
-                    siblings = [r for r in matching if all(r[k] == ref[k] for k in ("segment_index", "field", "repetition"))]
-                    if ref != siblings[0]:
-                        continue
-                if ref["raw_sha256"] != result["case_id"]:
-                    raise ValueError("source_hash_mismatch")
-                start, end = ref["byte_start"], ref["byte_end"]
-                if not 0 <= start <= end <= len(raw):
-                    raise ValueError("source_bounds")
-                atom = atoms.get(key)
-                if not atom or atom.get("unsupported") or atom.get("null") or atom.get("empty"):
-                    continue  # Explicit no_bound_rule abstention below, including null.
-                text = atom.get("text")
-                if not isinstance(text, str):
-                    raise ValueError("undecodable_source")
-                if rule["transform"] == "join_components":
-                    sibling_atoms = [atoms[_canonical(r)] for r in siblings]
-                    if any(a.get("unsupported") or a.get("null") or not isinstance(a.get("text"), str) for a in sibling_atoms):
-                        raise ValueError("join_unsupported_atom")
-                    text = parsed["delimiters"]["component"].join(a["text"] for a in sibling_atoms)
-                if "guard" in rule and text != rule["guard"]:
+                transform=rule["transform"]
+                target=rule.get("target")
+                index=ref["segment_index"]
+                field_atoms=fields[(index,ref["field"],ref["repetition"])]
+                whole=(target=="observation.value" and tags[index]=="OBX" and ref["field"]==5) or target in {"observation.code","report.code","observation.unit"} or transform=="join_components"
+                group_key=(index,ref["field"],ref["repetition"])
+                if whole and group_key in grouped:
                     continue
-                if any(_canonical(r) in used for r in siblings):
-                    raise ValueError("conflicting_source_dispositions")
-                used.update(_canonical(r) for r in siblings)
-                transform = rule["transform"]
-                disposition = {"source_ref": ref, "disposition": "abstain", "reason_code": "unknown",
-                               "target_refs": [], "evidence_refs": [proposal["dictionary_sha256"]]}
-                if transform in {"declare_drop", "abstain"}:
-                    disposition.update(disposition="declared_drop" if transform == "declare_drop" else "abstain",
-                                       reason_code=rule["reason"])
+                grouped.add(group_key)
+                selected=[atoms[_canonical(ref)]]
+                if whole:
+                    selected=([atoms[_canonical(r)] for r in matching if all(r[k]==ref[k] for k in ("segment_index","field","repetition"))]
+                              if transform=="join_components" else field_atoms)
+                atom=atoms[_canonical(ref)]
+                if (atom["empty"] or atom["null"] or atom["unsupported"]) and not (whole and target=="observation.value"):
+                    continue
+                text=atom["text"]
+                if "guard" in rule and text!=rule["guard"]:
+                    continue
+                consumed=[ref]
+                if transform in {"declare_drop","abstain"}:
+                    value=None
                 else:
-                    target = rule["target"]
-                    # Unknown Z meanings require an explicit dictionary target binding.
-                    if tags[ref["segment_index"]].startswith("Z"):
-                        for bound in siblings:
-                            binding = f"{tags[bound['segment_index']]}.{bound['field']}.{bound['component']}.{bound['subcomponent']}"
-                            if dictionary.get("bindings", {}).get(binding) != target:
-                                raise ValueError("undocumented_z_meaning")
-                    expected_scope = "patient" if target.startswith("patient.") else "order" if target.startswith("report.") else "observation"
-                    if _scope(ref["group_id"]) != expected_scope:
+                    expected="patient" if target.startswith("patient.") else "order" if target.startswith("report.") else "observation"
+                    if _scope(ref["group_id"])!=expected:
                         raise ValueError("unbound_target_group")
-                    compatible = {
-                        "decimal_with_comparator": {"observation.value"},
-                        "timestamp_preserve_precision": {"observation.time"},
-                        "unit_from_dictionary": {"observation.unit"},
-                        "repeated_value": {"observation.value", "observation.note"},
-                    }
-                    if transform in compatible and target not in compatible[transform]:
-                        raise ValueError("incompatible_target_transform")
-                    components = [atoms[_canonical(r)]["text"] for r in siblings] if transform == "join_components" else None
-                    value = _transform(rule, text, dictionary, components)
-                    rep = ref["repetition"] if transform == "repeated_value" else 0
-                    slot = (ref["group_id"], target, rep)
-                    if slot in assigned:
-                        raise ValueError("conflicting_target")
-                    assigned[slot] = value
-                    disposition.update(disposition="mapped", reason_code="dsl_rule",
-                                       _target=target, _group=ref["group_id"], _rep=rep)
-                result["dispositions"].append(disposition)
-                for sibling in siblings[1:]:
-                    result["dispositions"].append({**disposition, "source_ref": sibling,
-                                                   "target_refs": [], "evidence_refs": list(disposition["evidence_refs"])})
-        resources = _resources(assigned, dictionary)
-        for disposition in result["dispositions"]:
-            if disposition["disposition"] != "mapped":
-                continue
-            target = disposition.pop("_target")
-            group = disposition.pop("_group")
-            repetition = disposition.pop("_rep")
-            kind = "Patient" if target.startswith("patient.") else "DiagnosticReport" if target.startswith("report.") else "Observation"
-            repetitions = sorted({rep for (g, slot, rep) in assigned if g == group and slot == "observation.value" and rep > 0}) or [0]
-            if kind != "Observation":
-                repetitions = [0]
-            elif target == "observation.value" and repetition:
-                repetitions = [repetition]
-            for rep in repetitions:
-                resource_id = _resource_id(group, kind, rep)
-                resource = next(r for r in resources if r["resourceType"] == kind and r["id"] == resource_id)
-                path = {
-                    "patient.id": "identifier/0/value", "report.status": "status",
-                    "observation.code": "code/coding/0/code", "observation.system": "code/coding/0/system",
-                    "observation.status": "status", "observation.time": "effectiveDateTime",
-                    "observation.unit": "valueQuantity/unit", "observation.comparator": "valueQuantity/comparator",
-                    "observation.flag": "interpretation/0/text",
-                }.get(target)
-                if target == "observation.value":
-                    path = "valueQuantity/value" if "valueQuantity" in resource else "valueString"
-                if target == "observation.note":
-                    note_slots = [slot for slot in assigned if slot[0] == group and slot[1] == target]
-                    path = f"note/{note_slots.index((group, target, repetition))}/text"
-                if path is None:
-                    raise ValueError("unsupported_target_pointer")
-                disposition["target_refs"].append(f"{kind}/{resource_id}/{path}")
-                if target == "observation.value" and resource.get("valueQuantity", {}).get("comparator"):
-                    disposition["target_refs"].append(f"{kind}/{resource_id}/valueQuantity/comparator")
-        # Every untouched lexical atom is explicitly abstained. No silent omissions.
-        for key, ref in available.items():
-            if key not in used:
-                result["dispositions"].append({"source_ref": ref, "disposition": "abstain",
-                                               "reason_code": "no_bound_rule", "target_refs": [], "evidence_refs": []})
-        result.update(outcome="ok", bundle={"resourceType": "Bundle", "type": "collection",
-                                           "entry": [{"resource": r} for r in resources]},
-                      mapping_sha256=compiled["sha256"])
-    except (ValueError, TypeError, KeyError, UnicodeError, ImportError, RecursionError) as exc:
-        # Partial mappings cannot survive an error as apparently mapped evidence.
-        result.update(error=str(exc), bundle=None, dispositions=[])
+                    if (target=="observation.time") != (transform=="timestamp_preserve_precision"):
+                        raise ValueError("timestamp_target_transform_required")
+                    if transform=="decimal_with_comparator" and target!="observation.value":
+                        raise ValueError("decimal_value_target_required")
+                    if transform=="unit_from_dictionary" and target!="observation.unit":
+                        raise ValueError("unit_target_required")
+                    if tags[index].startswith("Z"):
+                        binding=f"{tags[index]}.{ref['field']}.{ref['component']}.{ref['subcomponent']}"
+                        if dictionary.get("bindings",{}).get(binding)!=target:
+                            raise ValueError("undocumented_z_meaning")
+                    if target=="observation.value" and tags[index]=="OBX" and ref["field"]==5:
+                        dtype=next((a for a in fields.get((index,2,1),[]) if a["source_ref"]["component"]==1 and a["source_ref"]["subcomponent"]==1),None)
+                        if not dtype or dtype["unsupported"] or dtype["null"] or dtype["empty"]:
+                            raise ValueError("datatype_unavailable")
+                        decoded=decode_value(dtype["text"],selected,dictionary,transform)
+                        value=decoded["value"]
+                        consumed=decoded["consumed"]
+                        # Datatype is structural evidence, allowed to support each repeat.
+                    elif target in {"observation.code","report.code","observation.unit"} and transform in {"dictionary_lookup","unit_from_dictionary"}:
+                        table_name=rule.get("dictionary") or ("units" if target=="observation.unit" else "codes")
+                        table=dictionary.get(table_name,dictionary.get("tables",{}).get(table_name))
+                        components={a["source_ref"]["component"]:a for a in selected if a["source_ref"]["subcomponent"]==1}
+                        code_atom=components.get(1)
+                        authority=components.get(3)
+                        if not isinstance(table,dict) or not code_atom or not authority or authority["empty"] or authority["unsupported"] or authority["null"]:
+                            raise ValueError("coded_source_namespace_required")
+                        value=coding_entry(table.get(code_atom["text"]),authority["text"],dictionary)
+                        consumed=[code_atom["source_ref"],authority["source_ref"]]
+                        display=components.get(2)
+                        if display and display["text"]==value.get("display") and not display["unsupported"] and not display["null"]:
+                            consumed.append(display["source_ref"])
+                        if any(a["source_ref"]["component"]>3 or a["source_ref"]["subcomponent"]>1 for a in selected if not a["empty"]):
+                            raise ValueError("extra_coding_components_unsupported")
+                    else:
+                        if transform=="join_components":
+                            if any(a["unsupported"] or a["null"] or a["source_ref"]["subcomponent"]!=1 for a in selected):
+                                raise ValueError("join_unsupported_atom")
+                            # Preserve empty component positions in the joined output;
+                            # they do not themselves assert a scalar source value.
+                            consumed=[a["source_ref"] for a in selected if not a["empty"]]
+                        value=_transform(rule,text,dictionary,[a["text"] for a in selected] if transform=="join_components" else None)
+                    for bound in consumed:
+                        if tags[bound["segment_index"]].startswith("Z"):
+                            binding=f"{tags[bound['segment_index']]}.{bound['field']}.{bound['component']}.{bound['subcomponent']}"
+                            if dictionary.get("bindings",{}).get(binding)!=target:
+                                raise ValueError("undocumented_z_meaning")
+                if any(_canonical(r) in used for r in consumed):
+                    raise ValueError("conflicting_source_dispositions")
+                used.update(_canonical(r) for r in consumed)
+                if transform in {"declare_drop","abstain"}:
+                    for source in consumed:
+                        rows[_canonical(source)].update(disposition="declared_drop" if transform=="declare_drop" else "abstain",reason_code=rule["reason"])
+                    continue
+                rep=ref["repetition"] if target=="observation.value" else index*65536+ref["repetition"] if target=="observation.note" else 0
+                slot=(ref["group_id"],target,rep)
+                if slot in assigned:
+                    raise ValueError("conflicting_target")
+                assigned[slot]=value
+                contributions.append((consumed,slot))
+                if target=="observation.value" and tags[index]=="OBX" and ref["field"]==5:
+                    type_support.append((dtype["source_ref"],slot))
+        resources=_resources(assigned,dictionary)
+        bundle={"resourceType":"Bundle","type":"collection","entry":[{"resource":r} for r in resources]}
+        for consumed,(group,target,rep) in contributions:
+            paths=_paths(bundle,group,target,rep,assigned)
+            if not paths:
+                raise ValueError("mapped_target_missing")
+            for source in consumed:
+                row=rows[_canonical(source)]
+                row.update(disposition="mapped",reason_code="dsl_dictionary_rule",target_refs=paths,
+                           evidence_refs=[proposal["dictionary_sha256"],compiled["sha256"]])
+        for source,(group,target,rep) in type_support:
+            key=_canonical(source)
+            if key in used:
+                raise ValueError("datatype_disposition_conflict")
+            row=rows[key]
+            paths=_paths(bundle,group,target,rep,assigned)
+            row.update(disposition="mapped",reason_code="dsl_value_datatype",
+                       target_refs=list(dict.fromkeys(row["target_refs"]+paths)),
+                       evidence_refs=[proposal["dictionary_sha256"],compiled["sha256"]])
+        result.update(outcome="ok",bundle=bundle,dispositions=list(rows.values()),mapping_sha256=compiled["sha256"])
+    except (ValueError,TypeError,KeyError,UnicodeError,ImportError,RecursionError,StopIteration,OverflowError) as exc:
+        result.update(error=str(exc),bundle=None,dispositions=[_row(ref,"execution_refused") for ref in refs])
     return result

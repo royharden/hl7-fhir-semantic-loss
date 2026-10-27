@@ -41,7 +41,7 @@ def _canonical(value: Any) -> bytes:
     try:
         return json.dumps(value, sort_keys=True, separators=(",", ":"),
                           ensure_ascii=True, allow_nan=False).encode("utf-8")
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, RecursionError) as exc:
         raise RulingError("ruling must contain finite JSON values") from exc
 
 
@@ -78,12 +78,12 @@ def _validate_payload(record: dict[str, Any]) -> None:
         raise RulingError("simulated must be an explicit boolean")
     if record["phase"] != "after_study_expanded_information":
         raise RulingError("rulings are after-study interventions only")
-    if record["original_obligation"] not in {"preserve", "declare_drop", "abstain"}:
+    if not isinstance(record["original_obligation"], str) or record["original_obligation"] not in {"preserve", "declare_drop", "abstain"}:
         raise RulingError("original obligation must be retained explicitly")
     decision = record["decision"]
     if not isinstance(decision, dict) or set(decision) != {"action", "reason"}:
         raise RulingError("decision requires exactly action and reason")
-    if decision["action"] not in ACTIONS:
+    if not isinstance(decision["action"], str) or decision["action"] not in ACTIONS:
         raise RulingError("unsupported ruling action")
     _text(decision["reason"], "decision reason")
     basis = record["basis"]
@@ -163,7 +163,7 @@ class RulingStore:
                     raise RulingError(f"incomplete/oversized journal record {sequence}; preserve original")
                 try:
                     record = json.loads(line)
-                except (UnicodeDecodeError, ValueError) as exc:
+                except (UnicodeDecodeError, ValueError, RecursionError) as exc:
                     raise RulingError(f"malformed journal record {sequence}") from exc
                 if not isinstance(record, dict) or set(record) != RECORD_FIELDS:
                     raise RulingError(f"unexpected fields at record {sequence}")
@@ -216,7 +216,7 @@ class RulingStore:
         if type(expected_revision) is not int or expected_revision < 0:
             raise RulingError("expected_revision must be a nonnegative integer")
         if supplement is not None:
-            if not isinstance(supplement_bytes, bytes) or hashlib.sha256(supplement_bytes).hexdigest() != supplement.get("sha256"):
+            if not isinstance(supplement, dict) or not isinstance(supplement_bytes, bytes) or hashlib.sha256(supplement_bytes).hexdigest() != supplement.get("sha256"):
                 raise RulingError("supplement bytes must match the recorded dictionary hash")
         elif supplement_bytes is not None:
             raise RulingError("unexpected supplement bytes")
