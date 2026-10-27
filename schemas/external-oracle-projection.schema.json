@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "External exact-projection oracle handoff (B consumer only)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id",
+    "raw_sha256",
+    "release_sha256",
+    "assertions"
+  ],
+  "properties": {
+    "case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "raw_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "release_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "assertions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "atom_id",
+          "source_ref",
+          "critical",
+          "knowability",
+          "comparison",
+          "targets"
+        ],
+        "properties": {
+          "atom_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_ref": {
+            "type": "object",
+            "minProperties": 1
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "knowability": {
+            "enum": [
+              "known",
+              "unknown"
+            ]
+          },
+          "comparison": {
+            "const": "exact"
+          },
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "pointer",
+                "expected"
+              ],
+              "properties": {
+                "pointer": {
+                  "type": "string",
+                  "pattern": "^/"
+                },
+                "expected": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
