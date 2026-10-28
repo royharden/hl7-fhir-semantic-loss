@@ -1,6 +1,7 @@
 # Round 2 local construction validation
 
-2026-10-27. This is builder-authored developer validation, not independent semantic,
+Run M12-DIRTY-20261027; checkpoint recorded 2026-10-28. This is builder-authored
+developer validation, not independent semantic,
 clinical, standards-conformance, live-provider, held-out-study or release acceptance.
 
 ## Executed checks
