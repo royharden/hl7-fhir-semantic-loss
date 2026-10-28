@@ -136,6 +136,9 @@ def parse_message(raw: bytes) -> dict:
                 for comp, (comp_value, comp_start, _comp_end) in enumerate(comps, 1):
                     subs = [(comp_value, comp_start, comp_start + len(comp_value))] if opaque else _pieces(comp_value, bytes([subcomponent]), comp_start)
                     for sub, (leaf, start, end) in enumerate(subs, 1):
+                        if len(result["atoms"]) >= MAX_ATOMS:
+                            result["errors"].append("too_many_atoms")
+                            return result
                         ref = {"raw_sha256": digest, "segment_index": index, "group_id": group,
                                "field": number, "repetition": rep, "component": comp,
                                "subcomponent": sub, "byte_start": start, "byte_end": end}
@@ -144,9 +147,6 @@ def parse_message(raw: bytes) -> dict:
                         result["atoms"].append({"source_ref": ref, "raw_hex": leaf.hex(),
                                                 "text": decoded["text"], "empty": leaf == b"",
                                                 "null": leaf == b'""', "unsupported": decoded["unsupported"]})
-                        if len(result["atoms"]) >= MAX_ATOMS:
-                            result["errors"].append("too_many_atoms")
-                            return result
         result["segments"].append({"index": index, "tag": tag, "group_id": group,
                                     "fields": fields, "byte_start": match.start(),
                                     "byte_end": match.end(), "terminator_hex": match.group(2).hex()})
@@ -170,6 +170,9 @@ def serialize_message(parsed: dict) -> bytes:
 
 def resolve_source_ref(raw: bytes, source_ref: dict) -> bytes:
     """Reject forged coordinates, hashes and offsets before reopening a raw leaf."""
+    coordinates = ("segment_index", "field", "repetition", "component", "subcomponent", "byte_start", "byte_end")
+    if not isinstance(source_ref, dict) or any(type(source_ref.get(name)) is not int for name in coordinates):
+        raise ValueError("invalid_source_ref")
     parsed = parse_message(raw)
     if parsed["errors"] or source_ref not in parsed["source_refs"]:
         raise ValueError("invalid_source_ref")
