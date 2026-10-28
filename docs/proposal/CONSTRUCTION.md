@@ -1,6 +1,8 @@
 # Proposal, accounting and rulings construction
 
-This source is built for Dirty construction and has not run. Authored mock responses
+This source is built for Dirty construction. Round2 developer tests have run on
+the explicitly allowed below-target Python3.11.3 fallback; see ROUND2-CHECKS.md.
+The Python3.12 app-local/installed-artifact target remains unverified. Authored mock responses
 are not model-quality results, FHIR validation, mapping-IG admission, or independent
 semantic evidence. Live ports always refuse and never inspect credentials.
 
@@ -79,7 +81,8 @@ custodian-authorization and expanded-obligation hashes; original obligation stay
 recorded. Hash fields record evidence, not role authentication or admission.
 Simulation is explicit. Rulings do not alter original primary-study expectations.
 
-Deferred activation checks: parser/DSL joined execution and source-pointer
+Target activation and broader acceptance checks (a developer subset has now run
+on the below-target fallback in Round2): parser/DSL joined execution and source-pointer
 coverage; all transforms, guards, repetitions, conflicts, malicious JSON and
 resource target refs; proposal/B2 syntax repair and attempt-cap persistence;
 accounting cap/concurrency/crash/unknown settlement; journal append/crash/CAS/stale/

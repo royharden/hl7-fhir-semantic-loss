@@ -1,7 +1,9 @@
 # Provider, ledger and ruling ports
 
-Source construction only. No imports, application execution or tests have validated
-these APIs. Mock usage/latency/output is authored evidence; it is not measured model
+Source construction with Round2 developer compatibility checks: the allowed
+Python3.11.3 fallback passed100 proposal/provider/accounting/journal tests. See
+ROUND2-CHECKS.md for exact command/counts and limits. Python3.12 installed-artifact
+execution and actual live/FHIR/semantic acceptance remain unverified. Mock usage/latency/output is authored evidence; it is not measured model
 quality, clinical evidence, billing, role authentication or admission. The CLI/runner
 must preserve this distinction. Live providers are permanently disabled in this source.
 

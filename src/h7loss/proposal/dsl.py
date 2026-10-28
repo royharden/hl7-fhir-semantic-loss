@@ -193,7 +193,7 @@ def _transform(rule: dict, text: str, dictionary: dict, components: list[str] | 
             raise ValueError("unsupported_decimal") from exc
         if not value.is_finite():
             raise ValueError("unsupported_decimal")
-        return {"value": str(value), "comparator": comparator}
+        return {"kind": "quantity", "value": str(value), "comparator": comparator}
     raise ValueError("unsupported_transform")
 
 
