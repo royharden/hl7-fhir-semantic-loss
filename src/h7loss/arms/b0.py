@@ -13,6 +13,21 @@ RULESET_ID = "original-b0-construction-v1"
 
 
 def _digest(value: dict) -> str:
+    # JSON encoder recursion behavior varies across supported interpreters.
+    # Bound public dictionary metadata explicitly before hashing it.
+    pending = [(value, 0)]
+    visited_nodes = 0
+    while pending:
+        node, depth = pending.pop()
+        visited_nodes += 1
+        if depth > 64 or visited_nodes > 65536:
+            raise ValueError("dictionary_nesting_or_node_limit")
+        if isinstance(node, (dict, list, tuple)) and visited_nodes + len(pending) + len(node) > 65536:
+            raise ValueError("dictionary_nesting_or_node_limit")
+        if isinstance(node, dict):
+            pending.extend((child, depth + 1) for child in node.values())
+        elif isinstance(node, (list, tuple)):
+            pending.extend((child, depth + 1) for child in node)
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
                                      ensure_ascii=True, allow_nan=False).encode()).hexdigest()
 

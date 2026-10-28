@@ -87,6 +87,29 @@ def test_recursive_dictionary_metadata_refuses_instead_of_crashing(shape):
     assert result["error"].startswith("invalid_dictionary:")
 
 
+@pytest.mark.parametrize("depth", [64, 65])
+def test_dictionary_depth_limit_is_explicit_across_interpreters(depth):
+    raw, dictionary = case()
+    nested = "leaf"
+    for _ in range(depth - 1):
+        nested = [nested]
+    dictionary["depth_probe"] = nested
+    result = map_message(raw, dictionary)
+    if depth == 64:
+        assert result["error"] is None and result["bundle"] is not None
+    else:
+        assert result["outcome"] == "refused"
+        assert "dictionary_nesting_or_node_limit" in result["error"]
+
+
+def test_dictionary_node_limit_refuses_before_unbounded_traversal():
+    raw, dictionary = case()
+    dictionary["too_many_nodes"] = ["original developer metadata"] * 66000
+    result = map_message(raw, dictionary)
+    assert result["outcome"] == "refused"
+    assert "dictionary_nesting_or_node_limit" in result["error"]
+
+
 @pytest.mark.parametrize("field,replacement", [(3, "D01NM^Test^CONFLICT"), (6, "du^Unit^CONFLICT")])
 def test_coding_namespace_conflict_never_asserts_observation(field, replacement):
     raw, dictionary = case()

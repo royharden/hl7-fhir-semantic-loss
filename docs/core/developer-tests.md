@@ -36,3 +36,9 @@ with 146 passed, zero failures, exit 0, in 5.17 seconds. It ran the same core co
 above with isolated OUTER artifacts. The private READY receipt records exact paths
 and command. No installs or live calls occurred. This is below the declared Python
 3.12 target and is not installed-artifact, Java or independent evaluation acceptance.
+
+The first target-3.12 run exposed JSON-encoder-dependent recursion behavior: deeply
+nested metadata serialized successfully there while 3.11 rejected it. B0 now
+explicitly limits dictionary traversal to depth 64 (root depth zero) and 65536
+visited nodes before hashing. Malformed/over-limit metadata returns refusal with
+the parsed leaf ledger; it does not depend on the interpreter recursion threshold.
