@@ -1,7 +1,8 @@
 # Limitations and claim boundaries
 
-This is Dirty Mode construction, runtime unverified. No installation, test, demo,
-Java validation, round trip, study campaign or live model call has run for this package.
+This is Dirty Mode construction. A Python3.12.13 target run of tests/cli passed 37
+builder-authored tests, exercising the CLI through Typer CliRunner. Installed-wheel
+entrypoint, Java validation, round trip, study campaign and live models remain unrun.
 There are no measured headline results, speed claims, model improvements or validated
 clinical conclusions. An HTML report renders supplied records; it does not certify them.
 
