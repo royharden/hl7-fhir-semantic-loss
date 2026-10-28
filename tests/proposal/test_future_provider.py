@@ -198,6 +198,19 @@ def test_placeholder_key_is_not_embedded_in_public_output_or_provenance(store):
     assert KEY not in repr(activation())
 
 
+def test_escaped_placeholder_in_duplicate_model_json_value_is_refused(store):
+    # The first duplicate value must not disappear from the credential scan.
+    escaped = KEY.replace("<", "\\u003c")
+    text = '{"unit":"' + escaped + '","unit":"ordinary authored value"}'
+    wire = AuthoredWireTransport([wire_response(text=text)])
+    result = complete(OpenAICompatibleProvider(config=activation(), transport=wire, ledger=store))
+    assert result["outcome"] == "error"
+    assert result["stop_required"] is True
+    assert result["text"] == ""
+    assert result["raw_text_sha256"] == hashlib.sha256(text.encode()).hexdigest()
+    assert store.report()["held"] == 205
+
+
 def test_malformed_recursive_request_refuses_before_ledger_or_wire(store):
     schema = {}
     schema["self"] = schema
@@ -241,7 +254,7 @@ def test_instance_callback_cannot_replace_the_canned_fake_wire(store):
     assert len(wire.captured_requests) == 1
 
 
-def test_future_fake_port_does_not_bypass_current_mock_only_arm_gate(store):
+def test_future_fake_port_does_not_bypass_default_zero_caller_liability_cap(store):
     wire = AuthoredWireTransport([wire_response()])
     provider = OpenAICompatibleProvider(config=activation(), transport=wire, ledger=store)
     b2_result = map_message(b"authored", {}, provider=provider, ledger=store,
@@ -249,7 +262,10 @@ def test_future_fake_port_does_not_bypass_current_mock_only_arm_gate(store):
     site_result = propose_site({"site_id": "builder-site"}, [], provider=provider, ledger=store,
                                config_id="builder-config", model=MODEL)
     assert b2_result["outcome"] == site_result["outcome"] == "refused"
-    assert b2_result["attempts"] == site_result["attempts"] == store.report()["attempts"] == []
+    assert len(b2_result["attempts"]) == len(site_result["attempts"]) == 1
+    assert b2_result["attempts"][0]["dispatch_occurred_this_call"] is False
+    assert site_result["attempts"][0]["dispatch_occurred_this_call"] is False
+    assert store.report()["attempts"] == []
     assert wire.captured_requests == []
 
 

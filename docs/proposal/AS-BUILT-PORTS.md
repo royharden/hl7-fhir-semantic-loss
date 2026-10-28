@@ -14,7 +14,8 @@ must preserve this distinction. Live providers are permanently disabled in this 
 Import `Ledger, LedgerError` from `h7loss.ledger`. Construct exactly one app-lifetime
 database with `Ledger(path, cap_micro_usd=40_000_000)`, inject that ledger into both B2
 and site proposal calls, and close it explicitly with `close()`. Neither arm discovers
-or constructs a database. A second database is not new spend permission; external
+or constructs a database. The009C dispatch bridge selects one accounting owner per
+native attempt; see WORKFLOW-PROVIDERS.md for exact evidence/stop/history fields. A second database is not new spend permission; external
 runner/operator custody must enforce the one-database rule. An existing database's cap
 must equal the constructor cap; no implicit change/reset is allowed. Amounts are integer
 microUSD, never floats or Decimal inputs; the app ceiling is USD40 total.
@@ -75,8 +76,11 @@ injection; see FUTURE-PROVIDER.md. That vendor-neutral extension is NOT_VERIFIED
 for any live API. Its new fake-wire tests ran only in the separately granted
 Runtime014 target slot. Earlier100-pass receipts cover prior d5/f453 source, not
 the later extension; the133-pass receipt separately pins that extension.
-B2 and site APIs still require
-`type(provider) is MockProvider`, so subclasses or arbitrary provider objects refuse.
+B2/site default behavior still uses exact MockProvider. The009C internal bridge
+also permits exact explicitly configured AnthropicProvider/OpenAICompatibleProvider
+objects sharing the identical workflow Ledger after their activation gates. No
+arbitrary provider subclass or fake transport callback is admitted. CLI defaults
+remain keyless MockProvider; no live activation command is granted.
 
 ## B2 and site proposal consumers
 
@@ -85,14 +89,16 @@ config_id, max_liability_micro_usd=0, repair_liability_micro_usd=0,
 onboarding=None, max_output_chars=32768)` requires bytes, a JSON dictionary object,
 explicit nonempty string identities, at most five onboarding strings in a list,
 raw length at most 1 MiB, and output character cap 1..1 MiB. Inject the shared Ledger.
-It makes at most one initial attempt and one JSON-syntax-only repair. Shape errors
+It makes at most one initial attempt and one JSON-syntax-only repair. Any unknown
+usage/provider stop blocks further parsing/repair and preserves held liability. Shape errors
 do not permit semantic repair. No Java, roundtrip, truth or oracle feedback enters.
 Produced output requires exactly `bundle` object with resourceType Bundle and
 `dispositions` list; it is not FHIR/semantic validation.
 
 ArmResult contains case/arm/config/raw identities, `outcome` in
 `refused|error|produced`, nullable `bundle`, `dispositions`, nullable `error`,
-`attempts`, `evidence_class: "authored_mock"`, `runtime_verified: false`, and a
+`attempts`, `evidence_class: authored_mock|authored_fake_wire|unverified_live_wire`,
+`stop_required`, `runtime_verified: false`, and a
 bundle hash only after successful serialization. Serialization refusals clear bundle
 and dispositions but preserve recorded attempts.
 
@@ -170,3 +176,21 @@ are local-filesystem mechanisms, unverified on OneDrive/distributed filesystems.
 Concurrency, crash tail recovery, stale/CAS, supplement and projection behavior remain
 deferred. Optional ruling HTML/CLI integration belongs to DL4; independent truth roles
 and acceptance remain pending.
+
+
+##009C internal workflow seam
+
+Exact function signatures are unchanged; provider objects are explicitly classified
+before any attempt. All inputs use bounded_json depth32/node10000/bytes1048576,
+not JSON encoder recursion behavior alone. Native B2/site ID algorithms, top-level
+provenance fields and repair limits remain; caller caps bound computed future price
+before reserve/send. dispatch_state is this invocation only, ledger_dispatch_state
+and previous_attempt expose persisted history. reserved_micro_usd/actual_micro_usd
+retain actual ledger amounts separately from max_liability_micro_usd caller ceiling.
+Workflow raw_output_sha256 is model-text SHA256; wire_response_sha256 is the future
+raw response-envelope SHA256. See WORKFLOW-PROVIDERS.md for exact dispatch ownership.
+A produced response remains unvalidated provider output, never semantic/Java success.
+Current execution for this seam is authored fake-wire/mock only. Runtime016
+passed179 target source-path tests after one recorded input-refusal repair; see
+ROUND2-CHECKS.md. Actual vendor adapter admission/official-doc checks remain pending.
+Prior133pass belongs to009B, not009C; the179-pass receipt independently pins009C.
