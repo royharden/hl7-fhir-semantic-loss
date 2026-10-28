@@ -1,6 +1,6 @@
 # Site statistics and preregistration
 
-These B-lineage construction tools have not run. No independent expectations, calibration vector, power calculation, measured result or role approval is supplied.
+Round2 builder-authored developer checks exercise these B-lineage tools on the authorized below-target Python3.11 fallback; target Python3.12 and independent reference validation remain pending. No independent expectations, calibration vector, power calculation, measured result or role approval is supplied.
 
 `evaluation.stats.paired_site_bootstrap` accepts explicit site -> arm -> numerator/denominator mappings for one frozen metric, and requires every arm at every site. Counts must retain all scheduled failures according to that metric's denominator contract. Zero denominators are `None`; they are never silently removed from macro averages or intervals. Each draw selects whole sites with replacement using the same site selection for every arm. The seed is mandatory, the default is 10,000 draws, and quantiles linearly interpolate at `(n-1)*p`. Output preserves individual sites, macro and pooled point estimates, paired first-minus-second contrasts, and undefined-resample counts. If any resample statistic is undefined, its interval is undefined. This conservative behavior must be frozen in preregistration. Convenience sites do not support population inference.
 
