@@ -1,10 +1,10 @@
 # Local source journey
 
-These commands have **not been run** by DL4. Round 2 permits keyless local developer
-checks only on the INT-owned READY interpreter. At this checkpoint ENVIRONMENT-ROUND2.md
-is NOT READY: RAM blocked setup, and global Typer0.7 is unsupported. Do not use that
-fallback to drive product changes. See [Round 2 testing](ROUND2-TESTING.md). Wheel and
-independent/runtime acceptance remain separate. Entry point: `h7loss = h7loss.cli:app`.
+Round 2 target validation exercised these commands through Typer CliRunner: 37 developer
+tests passed on source6d338e0 using the INT-owned Python3.12.13 environment, Typer0.12.5
+and Click8.1.8. See [Round 2 testing](ROUND2-TESTING.md) for exact invocation and limits.
+Wheel/installed executable, independent and validator acceptance remain separate.
+Entry point: `h7loss = h7loss.cli:app`.
 
 After separately authorized setup, the proposed keyless journey is:
 

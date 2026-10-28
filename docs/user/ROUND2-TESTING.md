@@ -32,10 +32,22 @@ Symlink capability may be unavailable on Windows; report the exact skipped case 
 than claim that path passed. Hardlink alias checks remain separate.
 
 Execution state and exact commands/counts belong in the current run's READY receipt.
-At initial test authoring the environment marker was absent; the published marker now
-says NOT READY because setup RAM was below 3 GiB. No app-local interpreter exists yet.
-Global Python3.11/Typer0.7 is explicitly not an authorized DL4 CLI fallback; do not run
-this suite there or alter the product to accommodate it. No runtime claim is implied.
-A later keyless test pass proves only the exercised local
-developer behavior. Java, generic/paired roundtrip acceptance, independent scoring and
+Initial RAM-blocked attempts remain historical NOT_RUN. Runtime014 later authorized
+the READY app-local Python3.12.13 environment with pytest9.0.3, Typer0.12.5, Click8.1.8
+and Pydantic2.12.5. The run on source6d338e02685a7f7b77799b31fe4082e46d9396fb,
+treeb068241d2ea3964547d93b11c8afba76dd3c803e returned exit0: **37 passed in4.36s**,
+zero failures/skips. The app was exercised through CliRunner, without installing the
+product wheel or invoking an installed console script.
+
+Executed command (own worktree cwd, environment variables as above):
+
+```text
+<OUTER>\.venv\Scripts\python.exe -m pytest -q tests/cli -p no:cacheprovider --maxfail=1 --basetemp <OUTER>\.agent-work\runtime\DL4\target312-e64812ba012e41e79b775d5faa75a097\temp --junitxml <OUTER>\.agent-work\runtime\DL4\target312-e64812ba012e41e79b775d5faa75a097\results.xml
+```
+
+The same run directory retains command.json, pytest.log and results.xml with hashes in
+the private run READY receipt. It used authored temporary DBs/journals only, no actual
+ledger reset, API key, network/model call, worker install or spending. The slot was
+released after return; no unchanged-suite rerun was needed. Local checks prove only
+the exercised developer behavior. Java, generic/paired roundtrip acceptance, independent scoring and
 custody/rights/model/clinical gates remain separate and pending.
