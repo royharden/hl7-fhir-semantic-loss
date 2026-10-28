@@ -1,6 +1,7 @@
 """Normalize accepted producer serialization only; never dispatch or infer truth.
 
-Source traced at accepted master 0edf825 (DL1 d77daaa / DL2 4e6d300).
+Legacy serialization and Round2-017 declared workflow-provider claims are supported.
+Final producer/adapter source bytes must be explicitly pinned by the caller.
 Caller supplies pinned source bytes/config and an externally frozen binding hash.
 No producer imports, ledger creation, callbacks, path discovery or model calls.
 """
@@ -49,12 +50,40 @@ def _binding(binding, expected_binding_sha256, source_files, config, producer):
     return hashes
 
 
-def _attempts(payload, producer, binding, config):
+EVIDENCE_MODES = {"authored_mock": True, "authored_fake_wire": True, "unverified_live_wire": False}
+STATES = {"reserved", "settled", "unknown", "liability_breach"}
+
+
+def _money(value, name):
+    if value is not None and (type(value) is not int or value < 0):
+        raise Refusal(name + " must be nonnegative integer microUSD or unknown")
+    return value
+
+
+def _history_provenance(value):
+    """Historical identity may differ on refused replay; never rewrite it."""
+    if not isinstance(value, dict):
+        raise Refusal("persisted provenance object required")
+    if "authored_fixture" in value and type(value["authored_fixture"]) is not bool:
+        raise Refusal("persisted authored_fixture must be bool")
+    wire = value.get("provider_wire")
+    if wire is not None:
+        if not isinstance(wire, dict) or wire.get("mode") not in {"authored_fake", "live"}:
+            raise Refusal("persisted wire mode malformed")
+        if value.get("authored_fixture") is not (wire["mode"] == "authored_fake"):
+            raise Refusal("persisted wire/fixture claims disagree")
+        if "model" in wire and wire["model"] != value.get("model"):
+            raise Refusal("wire/native model claims disagree")
+    return _copy(value)
+
+
+def _attempts(payload, producer, binding, config, evidence):
     attempts = payload.get("attempts")
     if not isinstance(attempts, list) or len(attempts) > 2:
         raise Refusal("all producer attempts, bounded initial+repair, required")
     seen, usage = set(), []
     arm = "B2" if producer == "B2" else "A"
+    fixture = EVIDENCE_MODES[evidence]
     for number, attempt in enumerate(attempts):
         if not isinstance(attempt, dict):
             raise Refusal("attempt object required")
@@ -67,43 +96,114 @@ def _attempts(payload, producer, binding, config):
             raise Refusal("attempt provenance required")
         expected = {"arm_id": arm, "config_id": binding["config_id"],
                     "dictionary_sha256": binding["dictionary_sha256"], "model": config["model"],
-                    "attempt_number": number, "authored_fixture": True}
+                    "attempt_number": number, "authored_fixture": fixture}
         if producer == "B2":
             expected.update(case_id=binding["case_id"], raw_sha256=binding["raw_sha256"])
-            if type(attempt.get("attempt_number")) is not int or attempt["attempt_number"] != number:
-                raise Refusal("producer repair identity mismatch")
         else:
             expected["site_id"] = binding["site_id"]
-        if any(type(provenance.get(k)) is not type(v) or provenance.get(k) != v for k, v in expected.items()):
-            raise Refusal("attempt identity/config/dictionary drift")
-        for key in ("request_identity_sha256", "messages_sha256", "initial_messages_sha256"):
-            require_hash(provenance.get(key))
+        if "attempt_number" in attempt and (type(attempt["attempt_number"]) is not int or attempt["attempt_number"] != number):
+            raise Refusal("producer repair identity mismatch")
+        for claim in (provenance, attempt.get("incoming_provenance", provenance)):
+            if not isinstance(claim, dict) or any(type(claim.get(k)) is not type(v) or claim.get(k) != v for k, v in expected.items()):
+                raise Refusal("incoming/native identity/config/dictionary/fixture drift")
+            for key in ("request_identity_sha256", "messages_sha256", "initial_messages_sha256"):
+                require_hash(claim.get(key))
+            _history_provenance(claim)
+        incoming_reported = "incoming_provenance" in attempt
+        if evidence != "authored_mock" and not incoming_reported:
+            raise Refusal("wire workflow requires explicit incoming provenance")
+        incoming = attempt.get("incoming_provenance", provenance)
+        if any(provenance[k] != incoming[k] for k in ("request_identity_sha256", "messages_sha256", "initial_messages_sha256")):
+            raise Refusal("incoming/native request hash claims disagree")
+        if "incoming_provenance" in attempt and "provider_wire" in incoming:
+            raise Refusal("incoming workflow provenance cannot supply provider_wire")
+        if "provider_wire" in provenance:
+            expected_mode = "authored_fake" if evidence == "authored_fake_wire" else "live" if evidence == "unverified_live_wire" else None
+            if provenance["provider_wire"]["mode"] != expected_mode:
+                raise Refusal("current wire mode and root evidence disagree")
+        if "evidence_class" in attempt and attempt["evidence_class"] != evidence:
+            raise Refusal("attempt/root evidence classes disagree")
+        if "authored_fixture" in attempt and (type(attempt["authored_fixture"]) is not bool or attempt["authored_fixture"] is not fixture):
+            raise Refusal("producer evidence/fixture claims disagree")
         if attempt.get("dispatch_state") not in {"not_dispatched", "dispatched"}:
-            raise Refusal("explicit dispatch state required")
-        if "previously_dispatched" in attempt and type(attempt["previously_dispatched"]) is not bool:
-            raise Refusal("invalid previous dispatch state")
+            raise Refusal("explicit invocation dispatch state required")
+        for flag in ("previously_dispatched", "dispatch_occurred_this_call", "stop_required", "output_omitted"):
+            if flag in attempt and type(attempt[flag]) is not bool:
+                raise Refusal("malformed attempt boolean: " + flag)
+        if "dispatch_occurred_this_call" in attempt and attempt["dispatch_occurred_this_call"] != (attempt["dispatch_state"] == "dispatched"):
+            raise Refusal("invocation dispatch claims disagree")
+        if "ledger_dispatch_state" in attempt and attempt["ledger_dispatch_state"] not in {"not_dispatched", "dispatched"}:
+            raise Refusal("malformed persisted dispatch state")
         liability = attempt.get("max_liability_micro_usd")
         if type(liability) is not int or not 0 <= liability <= 40_000_000:
-            raise Refusal("integer lifetime-cap-bounded liability required")
-        if "usage_micro_usd" in attempt and attempt["usage_micro_usd"] is not None and (type(attempt["usage_micro_usd"]) is not int or attempt["usage_micro_usd"] < 0):
-            raise Refusal("usage must be nonnegative integer microUSD or unknown")
+            raise Refusal("integer lifetime-cap-bounded caller ceiling required")
+        for field in ("usage_micro_usd", "reserved_micro_usd", "actual_micro_usd"):
+            if field in attempt:
+                _money(attempt[field], field)
+        if "actual_micro_usd" in attempt:
+            actual, reserved, state = attempt["actual_micro_usd"], attempt.get("reserved_micro_usd"), attempt.get("usage_state")
+            if state in {"reserved", "unknown"} and actual is not None:
+                raise Refusal("unsettled history cannot claim known actual cost")
+            if state in {"settled", "liability_breach"} and actual is None:
+                raise Refusal("settled history requires reported actual cost")
+            if actual is not None and reserved is not None and state in {"settled", "liability_breach"}:
+                if (actual > reserved) != (state == "liability_breach"):
+                    raise Refusal("settlement/breach amounts disagree")
+            if attempt.get("dispatch_occurred_this_call") is True and "usage_micro_usd" in attempt and attempt["usage_micro_usd"] != actual:
+                raise Refusal("current response usage and persisted settlement disagree")
+        if attempt.get("dispatch_occurred_this_call") is True and attempt.get("reserved_micro_usd") is not None and attempt["reserved_micro_usd"] > liability:
+            raise Refusal("new reservation exceeds caller ceiling")
         if "outcome" in attempt and attempt["outcome"] not in {"success", "malformed", "timeout", "unknown_usage", "cap_exceeded", "error", "refused"}:
             raise Refusal("unknown producer attempt state")
-        if "usage_state" in attempt and attempt["usage_state"] not in {"settled", "unknown", "liability_breach"}:
-            raise Refusal("unknown settlement state")
-        if "reservation_state" in attempt and attempt["reservation_state"] not in {"reserved", "settled", "unknown", "liability_breach"}:
-            raise Refusal("unknown reservation state")
-        if attempt.get("authored_fixture", True) is not True:
-            raise Refusal("producer evidence classification mismatch")
+        for field in ("usage_state", "reservation_state"):
+            if field in attempt and attempt[field] not in STATES:
+                raise Refusal("unknown persisted accounting state")
         if attempt.get("outcome") in {"timeout", "unknown_usage", "error"} and attempt.get("usage_micro_usd") is not None:
-            raise Refusal("failure/unknown usage must not become known zero")
+            raise Refusal("unknown/error invocation usage must remain unknown")
+        if "api_compatibility_verified" in attempt and attempt["api_compatibility_verified"] is not False:
+            raise Refusal("unverified provider cannot assert API verification")
+        for field in ("raw_output_sha256", "raw_text_sha256", "wire_response_sha256"):
+            if attempt.get(field) is not None:
+                require_hash(attempt[field])
+        if "raw_text_sha256" in attempt and attempt.get("raw_output_sha256") != attempt["raw_text_sha256"]:
+            raise Refusal("workflow model-text hash names disagree")
+        persisted = None
+        if "ledger_provenance" in attempt:
+            persisted = _history_provenance(attempt["ledger_provenance"])
+        previous = attempt.get("previous_attempt")
+        if previous is not None:
+            if not isinstance(previous, dict) or type(previous.get("dispatched")) is not bool or previous.get("usage_state") not in STATES:
+                raise Refusal("malformed previous attempt history")
+            _money(previous.get("reserved"), "previous reserved")
+            _money(previous.get("actual"), "previous actual")
+            _history_provenance(previous.get("provenance"))
+            if "previously_dispatched" in attempt and attempt["previously_dispatched"] != previous["dispatched"]:
+                raise Refusal("previous dispatch claims disagree")
+        if attempt.get("previously_dispatched") is True and attempt.get("ledger_dispatch_state") == "not_dispatched":
+            raise Refusal("persisted ledger state cannot hide prior dispatch")
         usage.append({"attempt_id": identity, "usage_reported": "usage_micro_usd" in attempt,
                       "usage_micro_usd": attempt.get("usage_micro_usd"),
                       "usage_state": attempt.get("usage_state", "not_reported"),
                       "reservation_state": attempt.get("reservation_state", "not_reported"),
                       "dispatch_state": attempt["dispatch_state"],
                       "previously_dispatched": attempt.get("previously_dispatched"),
-                      "max_liability_micro_usd": liability})
+                      "dispatch_occurred_this_call": attempt.get("dispatch_occurred_this_call"),
+                      "ledger_dispatch_state": attempt.get("ledger_dispatch_state"),
+                      "max_liability_micro_usd": liability, "caller_max_liability_micro_usd": liability,
+                      "reserved_reported": "reserved_micro_usd" in attempt,
+                      "reserved_micro_usd": attempt.get("reserved_micro_usd"),
+                      "actual_reported": "actual_micro_usd" in attempt,
+                      "actual_micro_usd": attempt.get("actual_micro_usd"),
+                      "accounting_scope": "persisted_attempt" if "reserved_micro_usd" in attempt or "actual_micro_usd" in attempt else "not_reported",
+                      "incoming_provenance_reported": incoming_reported,
+                      "incoming_provenance": _copy(incoming) if incoming_reported else None,
+                      "ledger_provenance": persisted, "previous_attempt": _copy(previous),
+                      "persisted_binding_matches_incoming": None if persisted is None or not incoming_reported else all(k in persisted and digest(persisted[k]) == digest(v) for k, v in incoming.items()),
+                      "raw_output_sha256": attempt.get("raw_output_sha256"),
+                      "raw_text_sha256": attempt.get("raw_text_sha256"),
+                      "wire_response_sha256": attempt.get("wire_response_sha256"),
+                      "stop_required": attempt.get("stop_required"),
+                      "billing_verified": False})
     return _copy(attempts), usage
 
 
@@ -128,18 +228,37 @@ def _normalize_producer(payload, *, producer, binding, expected_binding_sha256, 
     if is_output and payload["error"] is not None:
         raise Refusal("output availability conflicts with producer error")
     attempts, usage = [], []
+    evidence = payload.get("evidence_class") if producer in {"B2", "SITE"} else "unverified_construction"
+    producer_stop = payload.get("stop_required")
+    if "stop_required" in payload and type(producer_stop) is not bool:
+        raise Refusal("explicit stop_required must be boolean")
     if producer in {"B2", "SITE"}:
-        if payload.get("evidence_class") != "authored_mock" or payload.get("runtime_verified") is not False:
-            raise Refusal("authored mock/unverified classification required")
-        attempts, usage = _attempts(payload, producer, binding, config)
+        if evidence not in EVIDENCE_MODES or payload.get("runtime_verified") is not False:
+            raise Refusal("supported claimed/unverified evidence classification required")
+        if "authored_fixture" in payload and (type(payload["authored_fixture"]) is not bool or payload["authored_fixture"] is not EVIDENCE_MODES[evidence]):
+            raise Refusal("root evidence/fixture claims disagree")
+        if evidence != "authored_mock" and type(producer_stop) is not bool:
+            raise Refusal("wire workflow requires explicit stop_required")
+        if is_output and producer_stop is True:
+            raise Refusal("output availability conflicts with stop_required")
+        if not is_output and producer_stop is False:
+            raise Refusal("failed workflow cannot claim continuation")
+        attempts, usage = _attempts(payload, producer, binding, config, evidence)
         if is_output and not attempts:
-            raise Refusal("produced model fixture without retained attempt")
+            raise Refusal("produced provider output without retained attempt")
+        if producer_stop is False and any(a.get("stop_required") is True for a in attempts):
+            raise Refusal("workflow continuation contradicts stopped attempt")
+        if is_output and producer_stop is False and any(a.get("usage_micro_usd") is None for a in attempts):
+            raise Refusal("workflow output cannot claim continuation on unknown usage")
     result = {"producer": producer, "producer_outcome": outcome, "producer_result": original,
               "producer_result_sha256": digest(original), "binding_sha256": expected_binding_sha256,
               "binding_verified": True, "source_hashes": hashes, "config_sha256": binding["config_sha256"],
               "config_id": binding["config_id"], "site_id": binding["site_id"],
               "dictionary_sha256": binding["dictionary_sha256"], "attempts": attempts, "usage": usage,
-              "evidence_class": "authored_mock" if producer in {"B2", "SITE"} else "unverified_construction",
+              "evidence_class": evidence, "evidence_verification": "claimed_unverified",
+              "producer_stop_required": producer_stop, "stop_required": producer_stop,
+              "complete_semantic_score": False, "headline_eligible": False,
+              "live_execution_verified": False, "billing_verified": False,
               "error": payload["error"], "runtime_verified": False,
               "java_status": "not_run", "generic_rt_status": "not_run", "paired_rt_status": "not_run",
               "unreported_critical_error": None, "any_critical_loss": None,
@@ -212,6 +331,11 @@ def normalize_producer(payload, *, producer, binding, expected_binding_sha256, s
                 "producer_result": original, "producer_result_sha256": digest(original),
                 "attempts": original.get("attempts") if isinstance(original, dict) else None,
                 "binding_verified": False, "eligible_for_scored_denominator": False,
+                "evidence_class": original.get("evidence_class") if isinstance(original, dict) else None,
+                "evidence_verification": "claimed_unverified", "stop_required": True,
+                "producer_stop_required": original.get("stop_required") if isinstance(original, dict) else None,
+                "complete_semantic_score": False, "headline_eligible": False,
+                "live_execution_verified": False, "billing_verified": False,
                 "runtime_verified": False, "independent_semantic_acceptance": False}
 
 
@@ -228,7 +352,8 @@ def denominator_records(normalized, *, final_attempt_id):
     attempt = {**common, "attempt_id": final_attempt_id, "outcome": normalized["outcome"],
                "producer_result_sha256": normalized["producer_result_sha256"],
                "producer_attempts": normalized["attempts"], "usage": normalized["usage"],
-               "binding_sha256": normalized["binding_sha256"], "evidence_class": normalized["evidence_class"]}
+               "binding_sha256": normalized["binding_sha256"], "evidence_class": normalized["evidence_class"],
+               "stop_required": normalized.get("stop_required"), "evidence_verification": "claimed_unverified"}
     assessment = {**common, "final_attempt_id": final_attempt_id, "java_status": "not_run",
                   "generic_rt_status": "not_run", "paired_rt_status": "not_run",
                   "unreported_critical_error": None, "any_critical_loss": None}
