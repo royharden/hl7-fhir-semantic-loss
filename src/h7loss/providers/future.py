@@ -75,7 +75,7 @@ class AuthoredWireTransport:
         return self._responses.pop(0)
 
 
-def _json(value: Any) -> bytes:
+def bounded_json(value: Any, compact: bool = True) -> str:
     pending = [(value, 0)]
     nodes = 0
     while pending:
@@ -92,12 +92,17 @@ def _json(value: Any) -> bytes:
         elif item is not None and type(item) not in (str, int, float, bool):
             raise ProviderError("finite JSON required")
     try:
-        encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+        encoded = json.dumps(value, sort_keys=True, separators=(",", ":") if compact else None,
+                             allow_nan=False).encode("utf-8")
     except (ValueError, TypeError, UnicodeError, RecursionError):
         raise ProviderError("finite bounded JSON required") from None
     if len(encoded) > _MAX_BYTES:
         raise ProviderError("JSON byte bound exceeded")
-    return encoded
+    return encoded.decode("utf-8")
+
+
+def _json(value: Any) -> bytes:
+    return bounded_json(value).encode("utf-8")
 
 
 def _hash(value: bytes) -> str:
@@ -245,10 +250,24 @@ class FutureProvider:
                       "input_bound_sha256": config.input_bound_sha256,
                       "endpoint_sha256": _hash(config.endpoint.encode()),
                       "request_sha256": _hash(body), "price_bound_sha256": _hash(_json(asdict(price)))}
+        if "max_liability_micro_usd" in budget:
+            provenance["caller_max_liability_micro_usd"] = budget["max_liability_micro_usd"]
+        workflow = budget.get("workflow_provenance")
+        if "workflow_provenance" in budget:
+            if type(workflow) is not dict or not workflow or "provider_wire" in workflow:
+                raise ProviderError("nonempty workflow provenance without provider_wire required")
+            # Copy validated native fields without changing their names or values.
+            provenance = {**json.loads(bounded_json(workflow)), "provider_wire": provenance}
         _json(provenance)  # Validate before the logical-string scan, without logging it.
         if _contains_text(provenance, config.api_key):
             raise ProviderError("credential overlaps provenance")
         liability = _cost(price, price.max_input_tokens, price.max_output_tokens, price.max_additional_micro_usd)
+        if "max_liability_micro_usd" in budget:
+            caller_cap = budget["max_liability_micro_usd"]
+            if type(caller_cap) is not int or caller_cap < 0 or liability > caller_cap:
+                raise ProviderError("computed liability exceeds explicit caller cap")
+        elif "workflow_provenance" in budget:
+            raise ProviderError("workflow caller liability cap required")
         ledger = self._ledger
         try:
             ledger.reserve(attempt_id, liability, provenance)
@@ -260,7 +279,9 @@ class FutureProvider:
                   "authored_fixture": config.mode == "authored_fake",
                   "evidence_class": "authored_fake_wire" if config.mode == "authored_fake" else "unverified_live_wire",
                   "api_compatibility_verified": False, "hidden_retries": 0,
-                  "max_liability_micro_usd": liability, "raw_output_sha256": None}
+                  "max_liability_micro_usd": liability, "raw_output_sha256": None,
+                  "wire_response_sha256": None, "raw_text_sha256": None,
+                  "raw_output_chars": None, "output_omitted": True}
         receipt: dict[str, Any] = {"api_compatibility_verified": False}
         try:
             headers = {} if config.mode == "authored_fake" else {"Authorization": "Bearer " + config.api_key}
@@ -276,7 +297,8 @@ class FutureProvider:
             if type(response) is not WireResponse or type(response.body) is not bytes:
                 raise ProviderError("malformed wire response")
             result["raw_output_sha256"] = _hash(response.body)
-            receipt["raw_output_sha256"] = result["raw_output_sha256"]
+            result["wire_response_sha256"] = result["raw_output_sha256"]
+            receipt["wire_response_sha256"] = result["wire_response_sha256"]
             if type(response.status_code) is not int or not 200 <= response.status_code < 300:
                 raise ProviderError("non-2xx wire response")
             if len(response.body) > _MAX_BYTES:
@@ -286,8 +308,30 @@ class FutureProvider:
             if type(value) is not dict or type(value.get("text")) is not str:
                 raise ProviderError("malformed output text")
             text = value["text"]
+            result["raw_text_sha256"] = _hash(text.encode("utf-8"))
+            result["raw_output_chars"] = len(text)
+            receipt["raw_text_sha256"] = result["raw_text_sha256"]
             if len(text) > budget["max_output_chars"]:
                 raise ProviderError("output character cap exceeded")
+            # A model JSON document can spell credential text with JSON escapes.
+            # Refuse logical key/value overlap rather than return reversible secrets.
+            logical_pairs: list[Any] = []
+            def retain_pairs(pairs):
+                # Preserve duplicate-key values for the credential scan too.
+                for key, item in pairs:
+                    logical_pairs.extend((key, item))
+                return dict(pairs)
+            try:
+                model_value = json.loads(text, object_pairs_hook=retain_pairs)
+            except RecursionError:
+                raise ProviderError("model JSON complexity bound exceeded") from None
+            except ValueError:
+                model_value = None
+            if model_value is not None:
+                bounded_json(model_value)
+                if (_contains_text(model_value, config.api_key)
+                        or _contains_text(logical_pairs, config.api_key)):
+                    raise ProviderError("credential overlaps model JSON")
             usage = value.get("usage")
             known = (type(usage) is dict and set(usage) == {"input_tokens", "output_tokens", "additional_micro_usd", "complete"}
                      and usage["complete"] is True
@@ -302,6 +346,7 @@ class FutureProvider:
             else:
                 result["error"] = "unknown_or_incomplete_usage"
             result["text"] = text.replace(config.api_key, "[REDACTED]") if config.api_key else text
+            result["output_omitted"] = False
         except Exception:
             # Do not retain exception text: external adapters can put secrets in it.
             result.update(outcome="error", text="", usage_micro_usd=None, stop_required=True,
