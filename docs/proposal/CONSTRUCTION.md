@@ -65,7 +65,9 @@ Java or roundtrip feedback enter this path. Reusing dispatched site/config/hash
 identity refuses. A fresh config is not approval for a further study attempt;
 campaign freeze enforcement belongs to the future authorized runner.
 
-`h7loss.arms.b2.map_message` uses the same Ledger and accepts exactly MockProvider.
+`h7loss.arms.b2.map_message` uses the same Ledger. Defaults accept exact MockProvider;
+009C also permits explicit configured future ports through WORKFLOW-PROVIDERS.md
+with one accounting owner, caller caps and truthful evidence modes.
 It permits one JSON syntax repair and returns raw authored attempts/hashes. Shape
 errors are not repaired. Produced output is unvalidated model-authored content.
 
