@@ -48,7 +48,7 @@ restriction; use separate explicitly authorized connections to the same database
 separate threads/processes, not one connection across threads. Concurrency/crash,
 cap/idempotency/unknown reconciliation and filesystem durability remain unverified.
 
-## Mock and disabled providers
+## Mock and default-disabled future providers
 
 `MockProvider(responses)` accepts an explicit sequence of authored mappings. Each
 `complete(messages, schema, model, budget)` consumes exactly one fixture; no retry,
@@ -67,7 +67,12 @@ replacement. Full capped text stays with the caller's authored fixture. Hashes u
 UTF-8 bytes; character caps count Python string characters, not tokens or bytes.
 
 `AnthropicProvider.complete(...)` and `OpenAICompatibleProvider.complete(...)`
-always raise `ProviderError("LIVE_DISPATCH_REFUSED: ...")`. B2 and site APIs require
+raise `ProviderError("LIVE_DISPATCH_REFUSED: ...")` with their default no-argument
+constructors. ROUND2-009B adds explicit guarded future config/transport/Ledger
+injection; see FUTURE-PROVIDER.md. That vendor-neutral extension is NOT_VERIFIED
+for any live API, and its new fake-wire tests require a separately granted runtime
+slot. Earlier100-pass receipts cover the prior d5/f453 source, not the later extension.
+B2 and site APIs still require
 `type(provider) is MockProvider`, so subclasses or arbitrary provider objects refuse.
 
 ## B2 and site proposal consumers

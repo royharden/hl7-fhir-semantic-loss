@@ -52,3 +52,22 @@ cross-lane/application journeys, rights/admission and actual Java/FHIR/roundtrip
 validation, live providers/model quality/budget pricing/operator access, separately
 appointed outside-builder O/H/Q/R and independent semantic acceptance. Source tests
 passing does not make complete_semantic_score true or ratify independent meaning.
+
+
+## Runtime012 granted joined-source check
+
+INT then granted the sole serialized compatibility slot in RUNTIME-012.md. The
+accepted parser dependency changed, so masterf3d969d was merged preserving reviewed
+d5e4074 own bytes at joined sourcef4533e2bd98a5aff0e612cd8acdb3cade351a489.
+Command: exact same Python3.11.3 interpreter, -m pytest -q tests/proposal
+-p no:cacheprovider --maxfail=1, with PYTEST_DISABLE_PLUGIN_AUTOLOAD=1,
+PYTHONDONTWRITEBYTECODE=1 and the same explicit own-worktree PYTHONPATH.
+Fresh basetemp: OUTER .agent-work/runtime/DL2/runtime-012-20261027T220114408.
+JUnit/stdout: OUTER .agent-work/runtime/DL2/receipts/runtime-012-20261027T220114408.xml
+and .log. Result100 passed9.36seconds, exit0. Slot RELEASED; RUNTIME-013.md grants
+DL3 the next slot. No unchanged test repetition is requested.
+
+These two100-pass receipts do NOT cover the later ROUND2-009B future-provider
+extension or its new test_future_provider.py. That source is separately reviewed
+and needs its own authorized fake-wire runtime check. No real HTTP/key/provider
+compatibility follows from a canned wire pass.

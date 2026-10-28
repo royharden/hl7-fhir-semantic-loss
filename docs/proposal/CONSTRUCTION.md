@@ -4,7 +4,9 @@ This source is built for Dirty construction. Round2 developer tests have run on
 the explicitly allowed below-target Python3.11.3 fallback; see ROUND2-CHECKS.md.
 The Python3.12 app-local/installed-artifact target remains unverified. Authored mock responses
 are not model-quality results, FHIR validation, mapping-IG admission, or independent
-semantic evidence. Live ports always refuse and never inspect credentials.
+semantic evidence. Live ports refuse by default and never discover credentials. A future explicitly
+injected config/transport boundary is documented in FUTURE-PROVIDER.md; it has no
+HTTP client or verified vendor support, and actual live calls remain prohibited.
 
 `h7loss.proposal.validate_proposal(dict)` returns `valid/errors`;
 `compile_proposal(dict)` freezes JSON and its SHA256; `execute_proposal(raw,

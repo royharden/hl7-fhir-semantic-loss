@@ -62,17 +62,17 @@ class MockProvider:
                 "latency_ms": None, "hidden_retries": 0}
 
 
-class _DisabledLiveProvider:
-    kind = "live"
-
-    def complete(self, messages: list[dict[str, str]], schema: dict[str, Any],
-                 model: str, budget: dict[str, int]) -> dict[str, Any]:
-        raise ProviderError("LIVE_DISPATCH_REFUSED: approval, rights, model, budget and custody gates pending; live transport not implemented")
+# Imported after ProviderError to keep the port's public exception stable.
+from .future import FutureProvider
 
 
-class AnthropicProvider(_DisabledLiveProvider):
-    """Disabled port; construction never reads an Anthropic key."""
+class AnthropicProvider(FutureProvider):
+    """Explicit future activation only; vendor API compatibility unverified."""
+
+    family = "anthropic"
 
 
-class OpenAICompatibleProvider(_DisabledLiveProvider):
-    """Disabled port; construction never reads a URL, account or API key."""
+class OpenAICompatibleProvider(FutureProvider):
+    """Explicit future activation only; vendor API compatibility unverified."""
+
+    family = "openai_compatible"
