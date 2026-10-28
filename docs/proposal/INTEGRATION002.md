@@ -1,6 +1,7 @@
 # Integration002: as-built parser/dictionary reconciliation
 Construction only. Round2 developer source-path tests now pass on the allowed
-below-target Python3.11.3 fallback (ROUND2-CHECKS.md). Separate O/H/Q, rights,
+below-target Python3.11.3 fallback and later the app-local Python3.12.13 source-path
+target (ROUND2-CHECKS.md). Separate O/H/Q, rights,
 Python3.12 installed-artifact execution, actual FHIR validation and semantic
 acceptance remain pending.
 

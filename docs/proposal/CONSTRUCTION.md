@@ -1,8 +1,9 @@
 # Proposal, accounting and rulings construction
 
 This source is built for Dirty construction. Round2 developer tests have run on
-the explicitly allowed below-target Python3.11.3 fallback; see ROUND2-CHECKS.md.
-The Python3.12 app-local/installed-artifact target remains unverified. Authored mock responses
+the explicitly allowed below-target Python3.11.3 fallback and later app-local
+Python3.12.13 source-path target; see ROUND2-CHECKS.md. Installed-artifact replay
+and broader application/independent acceptance remain unverified. Authored mock responses
 are not model-quality results, FHIR validation, mapping-IG admission, or independent
 semantic evidence. Live ports refuse by default and never discover credentials. A future explicitly
 injected config/transport boundary is documented in FUTURE-PROVIDER.md; it has no

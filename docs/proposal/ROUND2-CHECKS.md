@@ -4,7 +4,8 @@ These are builder-authored unit/integration cases, never independent gold,
 held-out cases, calibration or clinical evidence. Real spend remains USD0.00.
 Mock usage/ledger charges are authored fault inputs, never real billing.
 
-The app-local target environment remains NOT READY because INT's pre-install RAM
+At the initial below-target run, the app-local environment was NOT READY because
+INT's pre-install RAM
 guard was below3GiB. ENVIRONMENT-ROUND2.md explicitly authorized a limited existing-
 tool fallback for DL2. No installs, package/global configuration changes, Docker,
 network/model/API calls, accounts or credential reads were performed by this lane.
@@ -47,7 +48,8 @@ metadata in test_mock_workflows.py. No real model pin or key was used. INT must 
 that test path to the existing HANDOFF-PLACEHOLDERS.md used-in column; no new access
 placeholder is introduced.
 
-Still deferred: declared Python3.12 target and installed-wheel replay, broader
+At that initial receipt, deferred items included the declared Python3.12 target
+(now source-path tested in Runtime014 below), installed-wheel replay, broader
 cross-lane/application journeys, rights/admission and actual Java/FHIR/roundtrip
 validation, live providers/model quality/budget pricing/operator access, separately
 appointed outside-builder O/H/Q/R and independent semantic acceptance. Source tests
@@ -68,6 +70,55 @@ and .log. Result100 passed9.36seconds, exit0. Slot RELEASED; RUNTIME-013.md gran
 DL3 the next slot. No unchanged test repetition is requested.
 
 These two100-pass receipts do NOT cover the later ROUND2-009B future-provider
-extension or its new test_future_provider.py. That source is separately reviewed
-and needs its own authorized fake-wire runtime check. No real HTTP/key/provider
+extension or its new test_future_provider.py. That source was separately reviewed
+and subsequently received its own authorized Runtime014 check below. No real HTTP/key/provider
 compatibility follows from a canned wire pass.
+
+
+## Runtime014 declared-target source check
+
+INT marked ENVIRONMENT-ROUND2 READY and granted DL2 slotB. Exact interpreter:
+C:\Users\Roy Harden\OneDrive\PJ-OD\PortfolioBuilder\hl7-fhir-semantic-loss\.venv\Scripts\python.exe,
+CPython3.12.13 / pytest9.0.3. Shared environment used read-only, no worker installs.
+
+Tested source commit40f79162891890f680ce35840e98b2c9089a6f97 has exact frozen
+tree5edcfa283bae5a8b76dd38544426eb9faffac7b2. At run time it was an immutable staged
+candidate on HEADf4533e2; the tree was rechecked identical after process exit and
+committed unchanged. Later receipt-only documentation edits do not change src/tests.
+
+Environment: PYTHONPATH=own-worktree/src;own-worktree,
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 and PYTHONDONTWRITEBYTECODE=1.
+Working directory remains the assigned DL2 worktree. Exact arguments:
+
+```text
+-m pytest -q tests/proposal -p no:cacheprovider --maxfail=1 --basetemp OUTER/.agent-work/runtime/DL2/target312-c45a8a6114374905ac0e1981dc86ea7a/temp --junitxml OUTER/.agent-work/runtime/DL2/target312-c45a8a6114374905ac0e1981dc86ea7a/junit.xml
+```
+
+OUTER is the absolute app root named in the interpreter path. Full expanded argv,
+interpreter/source/environment pin is in that run directory's source-pin.json.
+Result133 passed9.80seconds, exit0; zero failures/errors/skips. All developer DBs,
+journals and reports were in the fresh unique lane folder. Runtime process returned;
+slotB released with final READY. No real HTTP, socket-capable transport, model,
+credential access, account creation, dependency change, install or spend occurred.
+
+Private artifacts in the same run folder:
+
+- pytest.log SHA2561b5ea6b6af8dd0c05c117b7d4b30d4fd65b4271421b976c31e21244ad08547a0
+- junit.xml SHA2567a5b6926b1e960e2a6860e7239903f613f586e8301f35b97d3ce4ab71156e2e2
+- source-pin.json records the immutable test source and exact argv.
+
+New coverage includes future activation/default refusal, placeholder-only canned
+serialization, no-auth/no-callback fake transport, sole-ledger price ceiling and
+per-category rounding, request drift/replay, malformed/unknown/capped wire response,
+redaction and escaping-independent request/provenance exclusion before reservation.
+Only the three named placeholders are used in positive fake-wire configurations.
+Pure quoted/backslash/Unicode substring fixtures are ordinary search text, never
+credentials or values in activation access fields.
+
+Fresh Medium review found the escaped-JSON overlap bug; logical string-key/value
+scanning repairs it. Fresh High construction re-review passed the tested tree.
+Both review lineages are builders; no outside-builder O/H/Q or human independence
+is implied. The133 tests are developer regressions, not clinical validation or
+independent semantic truth. Installed wheel, actual vendor documentation/API/header/
+pricing/tokenizer/adapter compatibility, live calls, Java/FHIR/roundtrip and separate
+rights/truth/campaign acceptance remain pending. Actual spend stays USD0.00.

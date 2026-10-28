@@ -114,4 +114,9 @@ Exact placeholder source locations for INT's handoff inventory:
   placeholders; the parent records its exact test locations in READY.
 
 No vendor docs were retrieved, credentials supplied, live call performed, or compatibility
-verified in this source-only task. Runtime tests and vendor adapter admission remain pending.
+verified in this source-only task. Runtime014 executed the authored fake-wire and existing proposal suite on the
+app-local Python3.12.13 target:133 passed9.80s at source commit40f7916 /
+tree5edcfa283bae5a8b76dd38544426eb9faffac7b2. See ROUND2-CHECKS.md for exact
+command/artifact hashes. This does not verify actual vendor adapters, authentication,
+current pricing/tokenizers, live calls, installed-wheel replay or independent meaning;
+all of those admission gates remain pending.
