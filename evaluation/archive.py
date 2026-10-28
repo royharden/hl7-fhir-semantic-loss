@@ -109,13 +109,34 @@ def validate_dictionary(value):
     contract. This structural check never establishes rights or blindness.
     """
     required = {"dictionary_id", "provenance", "codes", "identifier_systems", "observation_statuses", "report_statuses", "coding_authorities", "units", "value_codes", "z_segments"}
-    _object(value, required)
+    optional = {"site_id", "time_fields", "note_scopes", "flags", "tables", "bindings", "report_code"}
+    _object(value, required, optional)
+    if "site_id" in value:
+        _token(value["site_id"], "site_id")
+    if "report_code" in value:
+        _public_string(value["report_code"])
+    if "bindings" in value and value["bindings"] != {}:
+        raise Refusal("released nonempty binding/Z contract unavailable")
+    if "time_fields" in value:
+        _string_map(value["time_fields"])
+        for key, target in value["time_fields"].items():
+            if {"OBR.7": "report_effective", "OBX.14": "observation_effective"}.get(key) != target:
+                raise Refusal("unreleased time-field convention")
+    if "note_scopes" in value:
+        scopes = value["note_scopes"]
+        if not isinstance(scopes, dict) or len(scopes) > 10_000:
+            raise Refusal("bounded note-scope mapping required")
+        for key, targets in scopes.items():
+            if key != "NTE.3" or not isinstance(targets, list) or not targets or len(targets) > 2:
+                raise Refusal("unreleased note-scope convention")
+            if any(not isinstance(t, str) or t not in {"order", "observation"} for t in targets):
+                raise Refusal("unreleased note scope")
     _token(value["dictionary_id"], "dictionary_id")
     _object(value["provenance"], {"kind", "admission", "rights_review", "independent_semantic_review", "purpose"})
     for item in value["provenance"].values():
         _public_string(item)
-    for name in ("codes", "units", "value_codes"):
-        mapping = value[name]
+    for name in ("codes", "units", "value_codes", "flags"):
+        mapping = value.get(name, {})
         if not isinstance(mapping, dict) or len(mapping) > 10_000:
             raise Refusal("bounded code map required")
         for key, coding in mapping.items():
@@ -136,6 +157,21 @@ def validate_dictionary(value):
             raise Refusal("unsupported authority")
         for system in systems:
             _public_string(system)
+    if "tables" in value:
+        tables = value["tables"]
+        known = {"observation_codes": ("codes", "code"), "observation_systems": ("codes", "system"),
+                 "units": ("units", "code"), "flags": ("flags", "code"),
+                 "observation_statuses": ("observation_statuses", None), "report_statuses": ("report_statuses", None)}
+        _object(tables, set(), set(known))
+        for name, view in tables.items():
+            _string_map(view)
+            canonical_name, component = known[name]
+            canonical = value.get(canonical_name, {})
+            for key, item in view.items():
+                entry = canonical.get(key)
+                expected = entry.get(component) if component is not None and isinstance(entry, dict) else entry if component is None else None
+                if expected != item:
+                    raise Refusal("scalar dictionary view disagrees with canonical release")
     if value["z_segments"] != {}:
         raise Refusal("released Z dictionary contract unavailable")
     return value

@@ -1,0 +1,31 @@
+{
+  "policy_id": "builder-v0",
+  "authorship": "builder-authored, provisional, not independent gold",
+  "independent_ratification": "PENDING - Roy",
+  "complete_semantic_score": false,
+  "supported_resources": [
+    "Patient",
+    "DiagnosticReport",
+    "Observation",
+    "ServiceRequest"
+  ],
+  "metadata_exclusions": [
+    "Bundle.resourceType",
+    "Bundle.type",
+    "Bundle.entry.fullUrl",
+    "resource.resourceType",
+    "resource.id"
+  ],
+  "assertion_rule": "Every other scalar or empty container leaf is an occurrence; array indices are omitted from roles and retained in pointers.",
+  "relation_rule": "A leaf named reference is a directed local resource edge; unresolved or ambiguous targets never match.",
+  "duplicates": "Count occurrences, never deduplicate. Expected alternatives consume at most one occurrence. Excess identical occurrences are duplicates; excess different allowed alternatives are alternative_stuffing.",
+  "equivalence_rule": "Only explicit per-assertion allowed_values; no implicit coding/display/unit/time/clinical equivalence.",
+  "cardinality_rule": "Optional explicit resolved-edge min/max per subject+role, separate condition findings; no clinical cardinality inferred.",
+  "limits": {
+    "resources": 1024,
+    "nodes": 100000,
+    "depth": 64,
+    "serialized_bytes": 2000000
+  },
+  "headline_eligible": false
+}
