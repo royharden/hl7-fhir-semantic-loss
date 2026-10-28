@@ -120,3 +120,16 @@ tree5edcfa283bae5a8b76dd38544426eb9faffac7b2. See ROUND2-CHECKS.md for exact
 command/artifact hashes. This does not verify actual vendor adapters, authentication,
 current pricing/tokenizers, live calls, installed-wheel replay or independent meaning;
 all of those admission gates remain pending.
+
+
+##009C workflow adapter
+
+The later WORKFLOW-PROVIDERS.md seam permits explicit configured ports in B2/site
+without duplicate reservation. Caller initial/repair liability caps bound the computed
+price before any send; native workflow IDs/top-level provenance remain. Default CLI
+behavior stays keyless MockProvider; no future live activation command is granted.
+Standalone future raw_output_sha256 remains raw-envelope SHA256, while workflow
+raw_output_sha256 is raw model text and wire_response_sha256 keeps the envelope hash.
+Actual reserved/settled fields are separate from caller ceilings. Unknown/error stops
+before any workflow repair and retains exposure. Runtime016179-pass builder evidence
+covers this source bridge; vendor translation/access/admission remains unverified.

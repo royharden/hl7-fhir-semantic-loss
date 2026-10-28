@@ -122,3 +122,58 @@ is implied. The133 tests are developer regressions, not clinical validation or
 independent semantic truth. Installed wheel, actual vendor documentation/API/header/
 pricing/tokenizer/adapter compatibility, live calls, Java/FHIR/roundtrip and separate
 rights/truth/campaign acceptance remain pending. Actual spend stays USD0.00.
+
+
+##Runtime016009C workflow/accounting bridge
+
+Accepted baseecfcfee97c34023c8817e1b624dfa0a5a366fde3 was merged before the new
+workflow seam. Same exact app-local CPython3.12.13/pytest9.0.3, own PYTHONPATH,
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1/PYTHONDONTWRITEBYTECODE=1, cache disabled. Both
+runs used arguments -m pytest -q tests/proposal -p no:cacheprovider --maxfail=1,
+fresh distinct OUTER .agent-work/runtime/DL2/target312-UUID/temp and per-run
+junit.xml/pytest.log/source-pin.json. Exact expanded argv is in each source pin.
+No overlapping test processes or source mutation during either execution.
+
+First run: tree09f2ffc51adcd72b1e7b3ebb728c2e6e25ef70f6, folder
+target312-f65cfd9da9a843f181e68767a05165b7. Result174passed/1failed13.40s,
+exit1; JUnit175executed/1failure/0errors/0skips, suite12.898s. Maxfail1 left
+remaining cases unexecuted. Oversized B2 onboarding returned error instead of
+input-refused before dispatch. It sent nothing and made no money reservation.
+The failure artifacts remain intact:
+
+- pytest.log SHA256183416852af952e78dd19488faebc856e5889a496e96bd9616a9e131525cc34a
+- junit.xml SHA256b45064960418ab3e130a5c14ce9589923550e1000c860e24408d1f658d0b032e
+- source-pin.json SHA2568cd7d4147ea78ad4e04de3f9eefb39c437cf67c564ebbca1117c06c20ccba050
+
+Repair moves complete request construction/hashing inside pre-attempt refusal guards
+in B2 and site. Valid-input hashes/IDs/spacing are unchanged; no test was weakened.
+The complete rerun was justified by that source correction and the incomplete first
+suite. Repaired core commitd652e449e6c341812022f144ce4cd5e3b4e389ec has exact
+tested treed5f081ba3074f16a9e8590ae148965e09f9af4b6; immutable before/after run.
+
+Final run folder target312-3c40988c4cb84eafa1f2fe32a17c0648:
+179passed35.27s, exit0; JUnit179tests/0failures/0errors/0skips, suite34.591s.
+
+- pytest.log SHA2560be743311d4906530bbd4350440c315d70a94aa05392a994ba1c0f2d8c13c07b
+- junit.xml SHA25626886afa6b74d88784c76723baeae5668198845e14660ffe34f417f57db0b770
+- source-pin.json SHA256f3f414478e16bbd30633ad00dfc249ccc38369f92b5181c689ed71a75d84eca9
+
+Fresh Medium0A98 reviewed the original full bridge; fresh Medium0B01 reviewed the
+concrete refusal-guard repair and original failure receipt. They authored neither
+production code nor tests and performed no duplicate runtime. All are builder lineage,
+not independent O/H/Q or human stand-ins. Later documentation-only receipt commits do
+not change source/tests or require duplicate execution.
+
+The new cases exercise one financial owner, same Ledger instance, native B2/A IDs and
+provenance, caller ceilings vs actual reservation/settlement, no duplicate dispatch on
+replay, known cap fee preservation, unknown/cap/failure stop before repair, one bounded
+syntax/schema repair with public-only feedback, exact modes, model-text vs wire hashes,
+placeholder/default-live guards, depth/node/byte input refusal and JSON secret filtering.
+All future positive fixtures use the concrete canned transport and the same three named
+placeholders; no HTTP/socket-capable fake, invented/actual key or model call is used.
+Mock/test monetary entries are simulated; actual app spend remains USD0.00.
+
+SlotB process returned/released. Earlier133-pass evidence is009B only, not a substitute
+for these009C bytes. Installed-wheel/combined consumer journeys are INT-owned next work.
+Official current vendor adapter/headers/tokenizer/prices/access, live calls, Java/FHIR/
+roundtrip, rights, and outside-builder O/H/Q/R/semantic acceptance remain pending.

@@ -59,7 +59,8 @@ No IG conformance is claimed. Empty/null/unsupported atoms and unmatched rules
 produce explicit abstentions; mapping conflicts fail the whole output.
 
 `propose_site(dictionary, onboarding, *, provider, ledger, config_id, model, site_id=None, ...)`
-is mock-only, at most five explicit onboarding strings, one initial proposal and
+is mock-default with the explicit009C accounting bridge, at most five onboarding
+strings, one initial proposal and
 one local schema-only repair. No scores, truth, user-supplied feedback callbacks,
 Java or roundtrip feedback enter this path. Reusing dispatched site/config/hash
 identity refuses. A fresh config is not approval for a further study attempt;

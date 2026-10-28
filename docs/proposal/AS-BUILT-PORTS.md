@@ -190,5 +190,7 @@ retain actual ledger amounts separately from max_liability_micro_usd caller ceil
 Workflow raw_output_sha256 is model-text SHA256; wire_response_sha256 is the future
 raw response-envelope SHA256. See WORKFLOW-PROVIDERS.md for exact dispatch ownership.
 A produced response remains unvalidated provider output, never semantic/Java success.
-Current execution for this new seam is authored fake-wire only; actual vendor adapter
-admission/official-doc checks remain pending. Prior133pass belongs to009B, not009C.
+Current execution for this seam is authored fake-wire/mock only. Runtime016
+passed179 target source-path tests after one recorded input-refusal repair; see
+ROUND2-CHECKS.md. Actual vendor adapter admission/official-doc checks remain pending.
+Prior133pass belongs to009B, not009C; the179-pass receipt independently pins009C.

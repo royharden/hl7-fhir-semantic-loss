@@ -3,7 +3,9 @@
 The bridge preserves existing keyless MockProvider defaults. Configured future providers
 can enter B2/site through an explicit internal seam; neither a CLI activation route nor
 a live HTTP adapter is added. No SDK, network call, environment/credential discovery,
-installation, test execution, or spend is part of this source task.
+installation or spend is part of this task. Runtime016 subsequently passed179
+builder source-path tests on Python3.12.13; exact source/failure/repair receipts
+are in ROUND2-CHECKS.md. That does not verify live/vendor or independent meaning.
 
 ## Exact API
 
