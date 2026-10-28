@@ -1,8 +1,10 @@
 # Local source journey
 
-Construction source only. These commands have **not been run**. Dependency installation,
-wheel packaging, imports, CLI invocation and end-to-end behavior await activation after
-Dirty Mode. The declared entry point is `h7loss = h7loss.cli:app`.
+These commands have **not been run** by DL4. Round 2 permits keyless local developer
+checks only on the INT-owned READY interpreter. At this checkpoint ENVIRONMENT-ROUND2.md
+is NOT READY: RAM blocked setup, and global Typer0.7 is unsupported. Do not use that
+fallback to drive product changes. See [Round 2 testing](ROUND2-TESTING.md). Wheel and
+independent/runtime acceptance remain separate. Entry point: `h7loss = h7loss.cli:app`.
 
 After separately authorized setup, the proposed keyless journey is:
 
