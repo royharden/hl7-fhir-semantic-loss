@@ -51,3 +51,19 @@ ledger reset, API key, network/model call, worker install or spending. The slot 
 released after return; no unchanged-suite rerun was needed. Local checks prove only
 the exercised developer behavior. Java, generic/paired roundtrip acceptance, independent scoring and
 custody/rights/model/clinical gates remain separate and pending.
+
+## Final-combined unknown-billing regression
+
+INT's combined target run on1aa1c79 stopped at1 failure/33 passes: the old test expected
+unknown billing to produce output/exit0. Final009C correctly returns error and requires
+stop. The test-only fix515250d splits known-billing syntax repair success from unknown
+usage. Unknown malformed output with a second valid fixture available must exit2,
+retain exactly one unknown attempt/reservation held7, no Bundle and no repair dispatch.
+No production safety guard changed. Earlier failure artifacts remain preserved by INT.
+
+Focused target tests/cli on515250d returned38 passed in4.87s, exit0. Same exact target
+interpreter/environment/options as above, fresh run directory
+`.agent-work/runtime/DL4/unknown020-51c677e8ea554e3dab5571890239a3f8/` containing command.json,
+pytest.log, results.xml and isolated temp files. Source/test bytes were immutable during
+execution. Fresh Medium0037 source review passed. SlotD released; no broad combined or
+installed-wheel smoke rerun by DL4. Root combined rerun remains INT-owned and pending.

@@ -22,5 +22,8 @@ The developer regression run exercised these paths through Typer's CliRunner.
 Round 2 adds builder-only CLI regressions under `tests/cli`; local execution requires
 the INT-owned environment's READY marker. See [keyless developer validation](docs/user/ROUND2-TESTING.md)
 for isolation and command guidance. Observed target run: 37 passed in 4.36s on Python
-3.12.13, Typer0.12.5 and Click8.1.8, source6d338e0. This covers developer CLI behavior;
+3.12.13, Typer0.12.5 and Click8.1.8, source6d338e0. The final009C billing-stop contract
+subsequently exposed a stale CLI test expectation; its test-only correction passed
+38 checks in4.87s on source515250d. Unknown usage remains an error/nonzero stop with
+held liability; known-billing syntax repair remains permitted. This covers developer CLI behavior;
 independent truth, installed-wheel entrypoint and actual validator/model results remain pending.
