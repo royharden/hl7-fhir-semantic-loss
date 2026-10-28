@@ -1,8 +1,13 @@
 # Proposal, accounting and rulings construction
 
-This source is built for Dirty construction and has not run. Authored mock responses
+This source is built for Dirty construction. Round2 developer tests have run on
+the explicitly allowed below-target Python3.11.3 fallback and later app-local
+Python3.12.13 source-path target; see ROUND2-CHECKS.md. Installed-artifact replay
+and broader application/independent acceptance remain unverified. Authored mock responses
 are not model-quality results, FHIR validation, mapping-IG admission, or independent
-semantic evidence. Live ports always refuse and never inspect credentials.
+semantic evidence. Live ports refuse by default and never discover credentials. A future explicitly
+injected config/transport boundary is documented in FUTURE-PROVIDER.md; it has no
+HTTP client or verified vendor support, and actual live calls remain prohibited.
 
 `h7loss.proposal.validate_proposal(dict)` returns `valid/errors`;
 `compile_proposal(dict)` freezes JSON and its SHA256; `execute_proposal(raw,
@@ -79,7 +84,8 @@ custodian-authorization and expanded-obligation hashes; original obligation stay
 recorded. Hash fields record evidence, not role authentication or admission.
 Simulation is explicit. Rulings do not alter original primary-study expectations.
 
-Deferred activation checks: parser/DSL joined execution and source-pointer
+Target activation and broader acceptance checks (a developer subset has now run
+on the below-target fallback in Round2): parser/DSL joined execution and source-pointer
 coverage; all transforms, guards, repetitions, conflicts, malicious JSON and
 resource target refs; proposal/B2 syntax repair and attempt-cap persistence;
 accounting cap/concurrency/crash/unknown settlement; journal append/crash/CAS/stale/

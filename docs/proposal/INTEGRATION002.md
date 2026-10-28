@@ -1,6 +1,9 @@
 # Integration002: as-built parser/dictionary reconciliation
-Construction only; no application/runtime/tests executed. Separate O/H/Q, rights,
-actual FHIR validation and semantic acceptance remain pending.
+Construction only. Round2 developer source-path tests now pass on the allowed
+below-target Python3.11.3 fallback and later the app-local Python3.12.13 source-path
+target (ROUND2-CHECKS.md). Separate O/H/Q, rights,
+Python3.12 installed-artifact execution, actual FHIR validation and semantic
+acceptance remain pending.
 
 The original ten transforms remain closed. Existing dictionary_lookup and
 unit_from_dictionary now consume the accepted producer top-level maps. No source

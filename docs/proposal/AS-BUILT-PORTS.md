@@ -1,7 +1,11 @@
 # Provider, ledger and ruling ports
 
-Source construction only. No imports, application execution or tests have validated
-these APIs. Mock usage/latency/output is authored evidence; it is not measured model
+Source construction with Round2 developer compatibility checks: the allowed
+Python3.11.3 fallback passed100 proposal/provider/accounting/journal tests; later
+Runtime014 passed133 source-path tests on app-local Python3.12.13, including the
+guarded authored-wire extension. See ROUND2-CHECKS.md for exact pins/commands and
+limits. Installed-artifact execution and actual live/FHIR/semantic acceptance remain
+unverified. Mock usage/latency/output is authored evidence; it is not measured model
 quality, clinical evidence, billing, role authentication or admission. The CLI/runner
 must preserve this distinction. Live providers are permanently disabled in this source.
 
@@ -46,7 +50,7 @@ restriction; use separate explicitly authorized connections to the same database
 separate threads/processes, not one connection across threads. Concurrency/crash,
 cap/idempotency/unknown reconciliation and filesystem durability remain unverified.
 
-## Mock and disabled providers
+## Mock and default-disabled future providers
 
 `MockProvider(responses)` accepts an explicit sequence of authored mappings. Each
 `complete(messages, schema, model, budget)` consumes exactly one fixture; no retry,
@@ -65,7 +69,13 @@ replacement. Full capped text stays with the caller's authored fixture. Hashes u
 UTF-8 bytes; character caps count Python string characters, not tokens or bytes.
 
 `AnthropicProvider.complete(...)` and `OpenAICompatibleProvider.complete(...)`
-always raise `ProviderError("LIVE_DISPATCH_REFUSED: ...")`. B2 and site APIs require
+raise `ProviderError("LIVE_DISPATCH_REFUSED: ...")` with their default no-argument
+constructors. ROUND2-009B adds explicit guarded future config/transport/Ledger
+injection; see FUTURE-PROVIDER.md. That vendor-neutral extension is NOT_VERIFIED
+for any live API. Its new fake-wire tests ran only in the separately granted
+Runtime014 target slot. Earlier100-pass receipts cover prior d5/f453 source, not
+the later extension; the133-pass receipt separately pins that extension.
+B2 and site APIs still require
 `type(provider) is MockProvider`, so subclasses or arbitrary provider objects refuse.
 
 ## B2 and site proposal consumers
