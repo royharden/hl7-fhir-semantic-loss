@@ -11,3 +11,16 @@ build/
 dist/
 
 *.egg-info/
+
+.env
+.env.*
+.creds/
+ArchiveManager-creds.txt
+*.pem
+*.key
+*.p12
+*.pfx
+node_modules/
+*.zip
+*.tar
+*.tar.gz
