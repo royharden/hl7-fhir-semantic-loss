@@ -18,3 +18,8 @@ and B0. Authored-response mock-map/mock-propose commands use the persistent mone
 simulated hash-bound ruling append and journal replay are wired. Literal producer
 outcomes and failures remain visible, with nonzero exits for partial/refused work.
 These integrations were source-traced only, never executed.
+
+Round 2 adds builder-only CLI regressions under `tests/cli`; local execution requires
+the INT-owned environment's READY marker. See [keyless developer validation](docs/user/ROUND2-TESTING.md)
+for isolation and command guidance. Test authoring alone does not establish a runtime
+pass, independent truth or actual validator/model results.
