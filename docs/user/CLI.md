@@ -2,7 +2,10 @@
 
 Round 2 target validation exercised these commands through Typer CliRunner: 37 developer
 tests passed on source6d338e0 using the INT-owned Python3.12.13 environment, Typer0.12.5
-and Click8.1.8. See [Round 2 testing](ROUND2-TESTING.md) for exact invocation and limits.
+and Click8.1.8. After the final provider contract changed unknown billing to a required
+stop, a stale test expectation was corrected; source515250d passed38 checks in4.87s.
+Unknown usage exits2, preserves its attempt/held reservation and forbids repair even
+when valid repair output is available. See [Round 2 testing](ROUND2-TESTING.md).
 Wheel/installed executable, independent and validator acceptance remain separate.
 Entry point: `h7loss = h7loss.cli:app`.
 
