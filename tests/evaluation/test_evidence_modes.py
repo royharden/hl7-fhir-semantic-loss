@@ -285,3 +285,72 @@ def test_new_wire_class_requires_explicit_incoming_record():
     data = fixture()
     data[0]["attempts"][0].pop("incoming_provenance")
     assert normalize(data)["outcome"] == "unsupported"
+
+
+@pytest.mark.parametrize("change", ["source_bytes", "model_config", "price_config"])
+def test_frozen_source_and_config_price_drift_refuse(change):
+    data = fixture()
+    if change == "source_bytes":
+        data[2]["developer-producer"] = b"changed developer producer source"
+    elif change == "model_config":
+        data[3]["model"] = "changed-negative-model-claim"
+    else:
+        data[3]["price_bound_sha256"] = sha256(b"changed developer price declaration")
+    original = copy.deepcopy(data[0])
+    result = normalize(data)
+    assert result["outcome"] == "unsupported"
+    assert result["producer_result"] == original
+    assert result["billing_verified"] is False and result["runtime_verified"] is False
+
+
+def test_prior_price_and_config_proof_is_not_rewritten_to_new_request():
+    data = fixture()
+    payload, binding, _, config = data
+    config["price_bound_sha256"] = sha256(b"new developer price declaration")
+    binding["config_sha256"] = digest(config)
+    attempt = payload["attempts"][0]
+    old = copy.deepcopy(attempt["ledger_provenance"])
+    old["provider_wire"].update(price_bound_sha256=sha256(b"old developer price declaration"), config_sha256=sha256(b"old developer activation config"))
+    attempt.update(provenance=copy.deepcopy(attempt["incoming_provenance"]), ledger_provenance=old,
+                   previously_dispatched=True, dispatch_occurred_this_call=False, dispatch_state="not_dispatched",
+                   outcome="refused", usage_micro_usd=None, stop_required=True,
+                   previous_attempt={"dispatched": True, "usage_state": "settled", "reserved": 10, "actual": 3, "provenance": copy.deepcopy(old)})
+    payload.update(outcome="refused", bundle=None, error="price/config drift refused", stop_required=True)
+    payload.pop("bundle_sha256")
+    result = normalize(data)
+    assert result["outcome"] == "error"
+    assert result["usage"][0]["ledger_provenance"]["provider_wire"] == old["provider_wire"]
+    assert result["usage"][0]["ledger_provenance"]["provider_wire"]["price_bound_sha256"] != config["price_bound_sha256"]
+    assert result["usage"][0]["usage_micro_usd"] is None
+    assert result["usage"][0]["actual_micro_usd"] == 3
+    assert result["billing_verified"] is False
+
+
+def test_unsupported_provider_refusal_never_becomes_success():
+    data = fixture()
+    data[0].update(evidence_class="unsupported_provider", outcome="refused", bundle=None,
+                   attempts=[], error="activation refused", stop_required=True)
+    data[0].pop("bundle_sha256")
+    result = normalize(data)
+    assert result["outcome"] == "unsupported"
+    assert result["evidence_class"] == "unsupported_provider"
+    assert result["producer_result"]["outcome"] == "refused"
+    assert result["attempts"] == [] and result["stop_required"] is True
+
+
+@pytest.mark.parametrize("breach", [False, True])
+def test_known_cap_or_breach_charge_is_preserved_separately_from_ceiling(breach):
+    data = fixture("authored_mock")
+    payload, attempt = data[0], data[0]["attempts"][0]
+    fee = 53 if breach else 3
+    state = "liability_breach" if breach else "settled"
+    payload.update(outcome="error", bundle=None, error="developer cap/breach", stop_required=True)
+    payload.pop("bundle_sha256")
+    attempt.update(outcome="success" if breach else "cap_exceeded", usage_micro_usd=fee,
+                   actual_micro_usd=fee, reserved_micro_usd=50, usage_state=state,
+                   reservation_state=state, stop_required=True, output_omitted=True)
+    result = normalize(data)
+    assert result["outcome"] == "error" and result["stop_required"] is True
+    assert result["usage"][0]["actual_micro_usd"] == fee
+    assert result["usage"][0]["caller_max_liability_micro_usd"] == 50
+    assert result["billing_verified"] is False
