@@ -90,18 +90,46 @@ def test_mock_map_persistence_and_replay_refusal(mock_files):
     assert call("ledger-report", ledger)["ledger"]["attempts"] == replay["ledger"]["attempts"]
 
 
-def test_mock_syntax_repair_and_unknown_usage(mock_files):
+def test_mock_known_billing_syntax_repair_succeeds(mock_files):
     source, dictionary, fixtures, ledger, config = mock_files
     config["responses"].insert(0, {"outcome": "malformed", "text": "{"})
     write_json(fixtures, config)
     repaired = call("mock-map", source, "--dictionary", dictionary, "--fixtures", fixtures, "--ledger", ledger)
     assert len(repaired["result"]["attempts"]) == 2
+    assert repaired["result"]["outcome"] == "produced"
+    assert all(attempt["usage_state"] == "settled" for attempt in repaired["result"]["attempts"])
+    assert repaired["ledger"]["held"] == repaired["ledger"]["spent"] == 0
+
+
+def test_mock_unknown_usage_stops_without_syntax_repair(mock_files):
+    """Unknown billing must stop before a syntactically repairable second response.
+
+    Regression: the old CLI expectation accepted exit0/produced after unknown billing,
+    predating009C's stop contract. Never weaken the producer or treat unknown as zero.
+    """
+    source, dictionary, fixtures, ledger, config = mock_files
     config["config_id"] = "builder-unknown-unit-case"
-    config["responses"] = [{"outcome": "unknown_usage", "text": config["responses"][1]["text"]}]
+    config["responses"].insert(0, {"outcome": "unknown_usage", "text": "{"})
     config["max_liability_micro_usd"] = 7
+    config["repair_liability_micro_usd"] = 9
     write_json(fixtures, config)
-    unknown = call("mock-map", source, "--dictionary", dictionary, "--fixtures", fixtures, "--ledger", ledger)
-    assert unknown["result"]["attempts"][0]["usage_micro_usd"] is None
+    unknown = call("mock-map", source, "--dictionary", dictionary, "--fixtures", fixtures,
+                   "--ledger", ledger, expected=2)
+    result = unknown["result"]
+    assert result["outcome"] == "error" and result["error"] == "unknown_usage_or_provider_failure"
+    assert result["stop_required"] is True and result["bundle"] is None
+    assert result["dispositions"] == [] and result["evidence_class"] == "authored_mock"
+    assert len(result["attempts"]) == len(unknown["ledger"]["attempts"]) == 1
+    attempt = result["attempts"][0]
+    assert attempt["usage_micro_usd"] is None and attempt["actual_micro_usd"] is None
+    assert attempt["usage_state"] == attempt["reservation_state"] == "unknown"
+    assert attempt["stop_required"] is True and attempt["dispatch_occurred_this_call"] is True
+    assert attempt["text"] == "{" and attempt["raw_output_sha256"] == digest(b"{")
+    stored = unknown["ledger"]["attempts"][0]
+    assert stored["attempt_id"] == attempt["attempt_id"]
+    assert stored["actual"] is None and stored["reserved"] == 7 and stored["usage_state"] == "unknown"
+    assert json.loads(stored["provenance"])["attempt_number"] == 0
+    assert [event["kind"] for event in unknown["ledger"]["events"]] == ["reserve", "dispatch", "unknown"]
     assert unknown["ledger"]["held"] == 7
     assert unknown["ledger"]["spent"] == 0
 
