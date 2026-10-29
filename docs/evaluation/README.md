@@ -1,0 +1,11 @@
+# External evaluation construction
+
+This directory is a separate stdlib source tree, excluded from the product wheel. It consumes future externally admitted O expectations. It contains no oracle compiler, calibration truth, independent checker, held-out renderer, or held-out data. All independent gates remain pending Roy appointments.
+
+`admission.inspect_dossier` reports missing inventory/rights/manifest-bound H/Q receipts; structural completeness never grants execution. `adapters.validation_receipt` defaults to not_run and stores external receipts without promoting them to verified results. No Java, .NET, renderer, network or subprocess is invoked.
+
+`score.compare_assertions` supports only exact JSON pointer projections, known/unknown slots and explicit source dispositions. Unsupported comparisons refuse. External O supplies the complete projection; missing paths differ from JSON null. Duplicates are preserved by distinct array pointers. This is a partial comparator, not a complete semantic scorer: output assertion enumeration, relation equivalences, all independent mutation outcomes, and Q fidelity validation remain pending. No headline should use it before those gates.
+
+`custody.freeze` hashes explicitly named files and records unique attempt IDs. It returns `{record, freeze_sha256}`; pass its `record` and `freeze_sha256` separately to `open_once`. `open_once` verifies the freeze hash and unchanged files before atomically creating an exclusive marker. Custodian isolation, complete attempt inventories, independent signatures, input/truth/protocol closure, archive safety and campaign retirement are external requirements. A process able to delete a marker can defeat this local mechanism; enforce permissions outside the builder process.
+
+Initial construction was static-only. Round2 exercises builder-authored developer tests on the authorized Python3.11 fallback; Python3.12 target and independent/runtime tool gates remain pending. See BUILDER-V0.md and the Round2 READY receipt for exact execution evidence. Later validation: admission violation cases, scorer mutation matrix and complete invention scan, raw-pointer/relationship fidelity, concurrent open/tamper/crash scenarios on Windows, Java good/bad/error receipts, stock B1 feasibility, generic/paired roundtrip controls and independently enumerated statistics reference.

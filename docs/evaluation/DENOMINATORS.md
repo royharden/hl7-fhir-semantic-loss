@@ -1,0 +1,9 @@
+# Schedule-first counts
+
+`evaluation.denominators.summarize(schedule, attempts, assessments)` accepts caller-supplied serialized records, with no file or truth discovery. Schedule rows identify case/site/arm/config/raw hash, namespace (authored_fixture, offline_dev, heldout) and purpose (scored, onboarding). Each case must appear once per arm, with the same identity across arms. The schedule is an explicit caller input; the tool cannot prove omitted cases do not exist.
+
+Every attempt is retained. An assessment names its final attempt explicitly; config/raw/output hashes must match. Java, generic RT and paired RT status must be explicit, including not_run/unsupported where applicable. Missing assessments remain scheduled. Repairs never add scheduled cases. Onboarding is counted separately. Namespaces never pool authored fixtures into measured results.
+
+Semantic flags are externally supplied bools (unreported_critical_error, any_critical_loss) bound to an external semantic receipt hash; unknown is null. Hash binding is not independent verification or proof of semantic completeness. Critical error implies critical loss. Failed/no-output attempts may not claim passes or semantic output scores. Unmeasured semantic coverage produces a null rate and explicit unmeasured count, rather than treating missing rows as clean. All-scheduled denominators retain every scheduled scored row; conditional denominators require actual pass statuses. No clinical, statistical or model-quality acceptance is implied.
+
+Deferred checks: schedule omissions/duplicates/identity drift, missing final attempts, retry retention, onboarding and namespace separation, all error/no-output statuses, absent semantic coverage, receipt/output tampering and exact denominator assertions. Independent expected outcomes must be supplied by O/Q later; none are authored here.
